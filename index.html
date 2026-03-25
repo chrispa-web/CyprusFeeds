@@ -1943,7 +1943,7 @@ function switchFuelType(type) {
 
 function renderFuelDistrictTable() {
   const rows = FUEL_DATA.districts;
-  const type = activeFuelType;
+ // const type = activeFuelType;
   const prices = rows.map(d => d[type].min);
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
