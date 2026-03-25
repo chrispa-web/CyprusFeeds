@@ -2100,9 +2100,14 @@ if ('serviceWorker' in navigator) {
 
 // ═══════════════════════ INIT ═══════════════════════
 renderFuelDistrictTable();
-Promise.allSettled([loadFuel(), loadElectricity(), loadEconomy(), loadRoads(), loadEACInterruptions()]);
-// Render static fuel district table immediately (no API needed)
-renderFuelDistrictTable();
+
+Promise.allSettled([
+  loadFuel(),
+  loadElectricity(),
+  loadEconomy(),
+  loadRoads(),
+  loadEACInterruptions()
+]);
 </script>
 </body>
 </html>
