@@ -1,0 +1,2108 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Κύπρος Live">
+<meta name="theme-color" content="#c8724a">
+<meta name="description" content="Live civic data for Cyprus — fuel prices, electricity, inflation, unemployment">
+
+<!-- PWA Manifest -->
+<link rel="manifest" href="manifest.json">
+
+<!-- Apple touch icons -->
+<link rel="apple-touch-icon" href="icons/icon-152.png">
+<link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png">
+<link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png">
+
+<!-- Apple splash screens (key sizes) -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<title>Κύπρος Live</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<style>
+:root {
+  --clay:       #c8724a;
+  --clay-light: #e8a07a;
+  --clay-dark:  #a85a32;
+  --sand:       #f5efe6;
+  --sand-dark:  #ede3d4;
+  --earth:      #8b5e3c;
+  --sea:        #2c6e8a;
+  --sea-light:  #4a9db5;
+  --sky:        #d4eaf5;
+  --text:       #1a1410;
+  --text-mid:   #5a4535;
+  --text-soft:  #9a8070;
+  --white:      #fdfaf7;
+  --card-bg:    #ffffff;
+  --border:     #e0d4c4;
+  --green:      #3a7d44;
+  --red:        #c0392b;
+  --amber:      #d4820f;
+  --safe-top:   env(safe-area-inset-top, 0px);
+  --safe-bot:   env(safe-area-inset-bottom, 0px);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html { font-size: 16px; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--sand);
+  color: var(--text);
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
+}
+
+/* ── STATUS BAR FILL (iOS) ── */
+.status-bar-fill {
+  height: var(--safe-top);
+  background: var(--clay-dark);
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 200;
+}
+
+/* ── TOP NAV ── */
+.top-nav {
+  background: var(--clay);
+  padding: calc(var(--safe-top) + 0px) 1rem 0;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  box-shadow: 0 2px 12px rgba(0,0,0,.2);
+}
+.nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+}
+.logo {
+  font-family: 'Instrument Serif', serif;
+  font-size: 1.45rem;
+  color: white;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.logo em { font-style: italic; color: var(--clay-light); }
+.logo-dot {
+  width: 7px; height: 7px;
+  background: #5dde7f;
+  border-radius: 50%;
+  animation: blink 2s ease-in-out infinite;
+  margin-left: 4px;
+  flex-shrink: 0;
+  align-self: center;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.nav-right { display: flex; align-items: center; gap: 0.5rem; }
+.lang-btn {
+  background: rgba(255,255,255,.18);
+  border: 1px solid rgba(255,255,255,.3);
+  color: white;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.lang-btn:active { background: rgba(255,255,255,.32); }
+
+/* ── TAB BAR ── */
+.tab-bar {
+  display: flex;
+  border-top: 1px solid rgba(255,255,255,.15);
+  margin-top: 0;
+}
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 4px 8px;
+  color: rgba(255,255,255,.55);
+  font-size: 0.62rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  gap: 2px;
+  border: none;
+  background: none;
+}
+.tab .tab-icon { font-size: 1.1rem; line-height: 1; }
+.tab.active { color: white; }
+.tab.active .tab-icon { transform: scale(1.1); }
+
+/* ── CONTENT AREA ── */
+.content {
+  padding-top: calc(var(--safe-top) + 52px + 44px);
+  padding-bottom: calc(var(--safe-bot) + 16px);
+  min-height: 100dvh;
+}
+
+/* ── PANELS (one per tab) ── */
+.panel { display: none; padding: 1rem; }
+.panel.active { display: block; }
+
+/* ── HERO CARD ── */
+.hero-card {
+  background: linear-gradient(135deg, var(--clay) 0%, var(--clay-dark) 100%);
+  border-radius: 18px;
+  padding: 1.3rem 1.4rem;
+  margin-bottom: 1rem;
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+.hero-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M20 20c0-5.5-4.5-10-10-10S0 14.5 0 20s4.5 10 10 10 10-4.5 10-10zm10 0c0 5.5 4.5 10 10 10s10-4.5 10-10-4.5-10-10-10-10 4.5-10 10z'/%3E%3C/g%3E%3C/svg%3E");
+}
+.hero-card .flag { position: absolute; right: 1.2rem; top: 1.1rem; font-size: 2rem; opacity: 0.3; }
+.hero-card h2 {
+  font-family: 'Instrument Serif', serif;
+  font-size: 1.5rem;
+  line-height: 1.1;
+  margin-bottom: 0.25rem;
+}
+.hero-card h2 em { font-style: italic; }
+.hero-card p { font-size: 0.78rem; opacity: 0.7; }
+.hero-update {
+  font-size: 0.68rem;
+  opacity: 0.55;
+  margin-top: 0.5rem;
+}
+
+/* ── STAT GRID ── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+.stat-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem 1rem 0.85rem;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s;
+}
+.stat-card:active { transform: scale(0.97); }
+.stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--clay);
+  border-radius: 14px 14px 0 0;
+}
+.stat-card.sea::after   { background: var(--sea); }
+.stat-card.green::after { background: var(--green); }
+.stat-card.amber::after { background: var(--amber); }
+.stat-card.red::after   { background: var(--red); }
+
+.stat-label {
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-soft);
+  margin-bottom: 0.4rem;
+}
+.stat-val {
+  font-family: 'Instrument Serif', serif;
+  font-size: 1.75rem;
+  line-height: 1;
+  color: var(--text);
+}
+.stat-val .unit {
+  font-size: 0.85rem;
+  color: var(--text-mid);
+}
+.stat-delta {
+  font-size: 0.72rem;
+  font-weight: 600;
+  margin-top: 0.3rem;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+.stat-delta.up   { color: var(--red); }
+.stat-delta.down { color: var(--green); }
+.stat-delta.flat { color: var(--text-soft); }
+.stat-foot {
+  font-size: 0.62rem;
+  color: var(--text-soft);
+  margin-top: 0.3rem;
+  line-height: 1.3;
+}
+
+/* ── LOADING SHIMMER ── */
+.shimmer {
+  background: linear-gradient(90deg, var(--sand) 25%, var(--sand-dark) 50%, var(--sand) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 6px;
+  height: 1.75rem;
+  width: 55%;
+  margin: 0.3rem 0;
+}
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── CHART CARD ── */
+.chart-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem;
+  margin-bottom: 0.65rem;
+}
+.chart-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+.chart-title { font-size: 0.82rem; font-weight: 600; }
+.chart-sub   { font-size: 0.68rem; color: var(--text-soft); margin-top: 2px; }
+.badge {
+  font-size: 0.63rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: var(--sky);
+  color: var(--sea);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.chart-wrap { position: relative; height: 160px; }
+
+/* ── EU TABLE ── */
+.eu-table-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 0.65rem;
+}
+.eu-table-head {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+table.eu {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+table.eu th {
+  background: var(--sand);
+  padding: 0.5rem 1rem;
+  text-align: left;
+  font-size: 0.64rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-soft);
+}
+table.eu td {
+  padding: 0.6rem 1rem;
+  border-top: 1px solid var(--border);
+}
+table.eu .cy td { font-weight: 700; color: var(--clay); }
+.mini-bar { width: 60px; }
+.bar-track { background: var(--sand-dark); border-radius: 4px; height: 6px; overflow: hidden; }
+.bar-fill  { height: 100%; border-radius: 4px; background: var(--clay); transition: width 0.8s ease; }
+table.eu .cy .bar-fill { background: var(--sea); }
+
+/* ── INFO ROW ── */
+.info-row {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.65rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+}
+.info-row .ico { font-size: 1.3rem; flex-shrink: 0; }
+.info-row .info-label { font-size: 0.65rem; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.07em; }
+.info-row .info-val   { font-weight: 600; font-size: 0.88rem; }
+
+/* ── SECTION DIVIDER ── */
+.section-div {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 1.1rem 0 0.7rem;
+}
+.section-div h3 {
+  font-family: 'Instrument Serif', serif;
+  font-size: 1.05rem;
+  color: var(--earth);
+  font-weight: 400;
+  white-space: nowrap;
+}
+.section-div hr {
+  flex: 1;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+/* ── OFFLINE BANNER ── */
+.offline-banner {
+  display: none;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 10px;
+  padding: 0.6rem 1rem;
+  font-size: 0.75rem;
+  margin-bottom: 0.75rem;
+  color: #856404;
+}
+.offline-banner.show { display: flex; gap: 0.5rem; align-items: center; }
+
+/* ── ABOUT PANEL ── */
+.about-section {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.2rem;
+  margin-bottom: 0.65rem;
+}
+.about-section h3 {
+  font-family: 'Instrument Serif', serif;
+  font-size: 1.1rem;
+  color: var(--earth);
+  margin-bottom: 0.5rem;
+}
+.about-section p {
+  font-size: 0.82rem;
+  color: var(--text-mid);
+  line-height: 1.55;
+  margin-bottom: 0.5rem;
+}
+.source-list { list-style: none; }
+.source-list li {
+  font-size: 0.78rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-mid);
+}
+.source-list li:last-child { border-bottom: none; }
+.source-list a { color: var(--clay); text-decoration: none; }
+
+/* ── PULL TO REFRESH hint ── */
+.ptr-hint {
+  text-align: center;
+  font-size: 0.68rem;
+  color: var(--text-soft);
+  padding: 0.5rem 0 1.5rem;
+}
+
+/* ── ROADS PANEL ── */
+.city-chips {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+}
+.chip {
+  background: var(--card-bg);
+  border: 1.5px solid var(--border);
+  color: var(--text-mid);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.chip:active { transform: scale(0.95); }
+.chip.active {
+  background: #4a3728;
+  border-color: #4a3728;
+  color: white;
+}
+
+.roads-map-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 0.65rem;
+}
+.roads-map-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.road-item {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.6rem;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s;
+}
+.road-item:active { transform: scale(0.98); }
+.road-item::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: var(--amber);
+  border-radius: 12px 0 0 12px;
+}
+.road-item.closed::before { background: var(--red); }
+.road-item.open::before   { background: var(--green); }
+.road-item.highway::before { background: var(--sea); }
+
+.road-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+.road-item-title {
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+  flex: 1;
+}
+.road-tag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.road-tag.works  { background: #fff3cd; color: #856404; }
+.road-tag.closed { background: #fde8e8; color: #c0392b; }
+.road-tag.open   { background: #e8f5e9; color: #3a7d44; }
+.road-tag.highway { background: var(--sky); color: var(--sea); }
+
+.road-item-body {
+  font-size: 0.77rem;
+  color: var(--text-mid);
+  line-height: 1.45;
+  margin-bottom: 0.35rem;
+}
+.road-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.66rem;
+  color: var(--text-soft);
+}
+.road-item-meta a {
+  color: var(--clay);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.roads-skeleton {
+  background: linear-gradient(90deg, var(--sand) 25%, var(--sand-dark) 50%, var(--sand) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 12px;
+  height: 90px;
+  margin-bottom: 0.6rem;
+}
+
+.road-error {
+  background: #fff8f0;
+  border: 1px solid #f5dcc0;
+  border-radius: 12px;
+  padding: 1rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--amber);
+  margin-bottom: 0.6rem;
+}
+.road-error a { color: var(--clay); font-weight: 600; }
+
+/* ── CHEAPEST FUEL TABLE ── */
+.fuel-district-wrap {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 0.65rem;
+}
+.fuel-district-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.fuel-type-toggle {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--sand);
+}
+.ftoggle {
+  flex: 1;
+  border: 1.5px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text-mid);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.73rem;
+  font-weight: 600;
+  padding: 5px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ftoggle.active { background: var(--clay); border-color: var(--clay); color: white; }
+
+table.fuel-cheap {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+table.fuel-cheap th {
+  background: var(--sand);
+  padding: 0.5rem 0.9rem;
+  text-align: left;
+  font-size: 0.63rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-soft);
+}
+table.fuel-cheap td {
+  padding: 0.65rem 0.9rem;
+  border-top: 1px solid var(--border);
+  vertical-align: middle;
+}
+table.fuel-cheap tr:hover td { background: var(--sand); }
+.price-cell {
+  font-family: 'Instrument Serif', serif;
+  font-size: 1.05rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+.price-cell.best { color: var(--green); }
+.price-cell.worst { color: var(--red); }
+.brand-pill {
+  display: inline-block;
+  font-size: 0.63rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: var(--sky);
+  color: var(--sea);
+  margin-top: 2px;
+}
+.fuel-data-note {
+  padding: 0.45rem 1rem;
+  font-size: 0.64rem;
+  color: var(--text-soft);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.fuel-data-note a { color: var(--clay); text-decoration: none; }
+
+/* ── EAC INTERRUPTIONS ── */
+.eac-emergency {
+  background: #fde8e8;
+  border: 1.5px solid #e8a0a0;
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+.eac-emergency .ico { font-size: 1.6rem; flex-shrink: 0; }
+.eac-emergency-title { font-size: 0.75rem; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: 0.06em; }
+.eac-emergency-num   { font-family: 'Instrument Serif', serif; font-size: 1.5rem; color: var(--red); line-height: 1; }
+.eac-emergency-sub   { font-size: 0.68rem; color: #a04040; }
+
+.eac-item {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.6rem;
+  position: relative;
+  overflow: hidden;
+}
+.eac-item::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  border-radius: 12px 0 0 12px;
+  background: var(--amber);
+}
+.eac-item.fault::before     { background: var(--red); }
+.eac-item.scheduled::before { background: var(--sea); }
+.eac-item.restored::before  { background: var(--green); }
+
+.eac-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+.eac-item-title { font-size: 0.83rem; font-weight: 600; line-height: 1.3; flex: 1; }
+.eac-item-body  { font-size: 0.76rem; color: var(--text-mid); line-height: 1.4; margin-bottom: 0.3rem; }
+.eac-item-meta  { font-size: 0.65rem; color: var(--text-soft); display: flex; gap: 0.6rem; align-items: center; }
+.eac-item-meta a { color: var(--clay); text-decoration: none; font-weight: 500; }
+.eac-tag {
+  font-size: 0.62rem; font-weight: 700; padding: 2px 7px; border-radius: 10px; white-space: nowrap; flex-shrink: 0;
+}
+.eac-tag.fault     { background: #fde8e8; color: var(--red); }
+.eac-tag.scheduled { background: var(--sky); color: var(--sea); }
+.eac-tag.restored  { background: #e8f5e9; color: var(--green); }
+
+.eac-district-links {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+.eac-dlink {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.65rem 0.4rem;
+  text-decoration: none;
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: center;
+  transition: background 0.15s, transform 0.15s;
+}
+.eac-dlink:active { transform: scale(0.95); background: var(--sand); }
+.eac-dlink .ico { font-size: 1.3rem; }
+
+/* ── FUEL DISTRICT TABLE ── */
+.fuel-district-wrap {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 0.65rem;
+}
+.fuel-district-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.fuel-type-toggle {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--sand);
+}
+.ftoggle {
+  flex: 1;
+  border: none;
+  background: none;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.5rem 0;
+  color: var(--text-soft);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+.ftoggle.active { color: var(--clay); border-bottom-color: var(--clay); background: var(--white); }
+table.fuel-cheap {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+table.fuel-cheap th {
+  background: var(--sand);
+  padding: 0.5rem 1rem;
+  text-align: left;
+  font-size: 0.64rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-soft);
+}
+table.fuel-cheap td {
+  padding: 0.65rem 0.9rem;
+  border-top: 1px solid var(--border);
+  vertical-align: middle;
+}
+table.fuel-cheap tr:hover td { background: var(--sand); }
+.price-cell {
+  font-family: 'Instrument Serif', serif;
+  font-size: 1.05rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+.price-cell.best  { color: var(--green); }
+.price-cell.worst { color: var(--red); }
+.brand-pill {
+  display: inline-block;
+  font-size: 0.63rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: var(--sky);
+  color: var(--sea);
+  margin-top: 2px;
+}
+.fuel-data-note {
+  padding: 0.45rem 1rem;
+  font-size: 0.64rem;
+  color: var(--text-soft);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.fuel-data-note a { color: var(--clay); text-decoration: none; }
+
+.eac-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+.eac-item-title {
+  font-size: 0.83rem;
+  font-weight: 600;
+  line-height: 1.3;
+  flex: 1;
+}
+.eac-tag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.eac-tag.fault     { background: #fde8e8; color: var(--red); }
+.eac-tag.scheduled { background: var(--sky); color: var(--sea); }
+.eac-tag.restored  { background: #e8f5e9; color: var(--green); }
+.eac-tag.info      { background: #fff3cd; color: #856404; }
+
+.eac-item-body {
+  font-size: 0.77rem;
+  color: var(--text-mid);
+  line-height: 1.4;
+  margin-bottom: 0.35rem;
+}
+.eac-item-meta {
+  font-size: 0.66rem;
+  color: var(--text-soft);
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.eac-item-meta a { color: var(--clay); text-decoration: none; font-weight: 500; }
+
+.eac-district-links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  margin-bottom: 0.65rem;
+}
+.eac-dlink {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  text-decoration: none;
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 500;
+  transition: transform 0.15s;
+}
+.eac-dlink:active { transform: scale(0.96); }
+.eac-dlink .ico { font-size: 1rem; }
+
+.quicklinks { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
+.qlink {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.8rem 1rem;
+  text-decoration: none;
+  color: var(--text);
+  transition: transform 0.15s;
+}
+.qlink:active { transform: scale(0.98); }
+.qlink-icon { font-size: 1.4rem; flex-shrink: 0; }
+.qlink-title { font-size: 0.83rem; font-weight: 600; }
+.qlink-sub   { font-size: 0.68rem; color: var(--text-soft); margin-top: 1px; }
+</style>
+</head>
+<body>
+
+<!-- Fixed navigation -->
+<div class="top-nav">
+  <div class="nav-inner">
+    <div class="logo">
+      Κύπρος<em>Live</em>
+      <span class="logo-dot"></span>
+    </div>
+    <div class="nav-right">
+      <button class="lang-btn" onclick="toggleLang()" id="langBtn">ΕΛ</button>
+    </div>
+  </div>
+  <div class="tab-bar" role="tablist">
+    <button class="tab active" onclick="showPanel('fuel')"     id="tab-fuel"    role="tab">
+      <span class="tab-icon">⛽</span><span data-en="Fuel"     data-el="Καύσιμα">Fuel</span>
+    </button>
+    <button class="tab"        onclick="showPanel('energy')"   id="tab-energy"  role="tab">
+      <span class="tab-icon">⚡</span><span data-en="Energy"   data-el="Ενέργεια">Energy</span>
+    </button>
+    <button class="tab"        onclick="showPanel('economy')"  id="tab-economy" role="tab">
+      <span class="tab-icon">📊</span><span data-en="Economy"  data-el="Οικονομία">Economy</span>
+    </button>
+    <button class="tab"        onclick="showPanel('roads')"   id="tab-roads"   role="tab">
+      <span class="tab-icon">🚧</span><span data-en="Roads"    data-el="Δρόμοι">Roads</span>
+    </button>
+    <button class="tab"        onclick="showPanel('about')"    id="tab-about"   role="tab">
+      <span class="tab-icon">ℹ️</span><span data-en="About"    data-el="Σχετικά">About</span>
+    </button>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- ── FUEL PANEL ── -->
+  <div class="panel active" id="panel-fuel">
+    <div class="offline-banner" id="offlineBanner">
+      ⚠️ <span>Offline — showing cached data</span>
+    </div>
+
+    <div class="hero-card">
+      <span class="flag">⛽</span>
+      <h2 data-en="Fuel Prices" data-el="Τιμές Καυσίμων">Fuel Prices</h2>
+      <p data-en="Cyprus pump prices vs EU" data-el="Τιμές αντλίας Κύπρου vs ΕΕ">Cyprus pump prices vs EU</p>
+      <div class="hero-update" id="fuelUpdate">Updating…</div>
+    </div>
+
+    <div class="stat-grid" id="fuelStats">
+      <div class="stat-card">
+        <div class="stat-label">Euro 95</div>
+        <div class="shimmer"></div>
+        <div class="stat-foot">Loading…</div>
+      </div>
+      <div class="stat-card sea">
+        <div class="stat-label">Diesel</div>
+        <div class="shimmer"></div>
+        <div class="stat-foot">Loading…</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label" data-en="vs EU Avg" data-el="vs ΕΕ Μέσος">vs EU Avg</div>
+        <div class="shimmer"></div>
+        <div class="stat-foot">Loading…</div>
+      </div>
+      <div class="stat-card amber">
+        <div class="stat-label">50L Tank</div>
+        <div class="shimmer"></div>
+        <div class="stat-foot">Loading…</div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-top">
+        <div>
+          <div class="chart-title" data-en="Euro 95 — Price Trend" data-el="Euro 95 — Τάση Τιμής">Euro 95 — Price Trend</div>
+          <div class="chart-sub">Cyprus vs EU avg · €/L</div>
+        </div>
+        <span class="badge">Weekly</span>
+      </div>
+      <div class="chart-wrap"><canvas id="fuelChart"></canvas></div>
+    </div>
+
+    <div class="eu-table-card">
+      <div class="eu-table-head">
+        <span data-en="EU Ranking (Petrol)" data-el="Κατάταξη ΕΕ (Βενζίνη)">EU Ranking (Petrol)</span>
+        <span class="badge">Mar 2026</span>
+      </div>
+      <div id="euTableBody">
+        <p style="padding:1rem;font-size:0.78rem;color:var(--text-soft)">Loading…</p>
+      </div>
+    </div>
+
+    <!-- Cheapest by area -->
+    <div class="section-div">
+      <h3 data-en="Cheapest Station by District" data-el="Φθηνότερη Περιοχή ανά Επαρχία">Cheapest Station by District</h3>
+      <hr>
+    </div>
+
+    <div class="fuel-district-wrap">
+      <div class="fuel-district-head">
+        <span class="chart-title" data-en="Weekly price survey — all districts" data-el="Εβδομαδιαία έρευνα τιμών">Weekly price survey — all districts</span>
+        <span class="badge" id="fuelSurveyDate">Mar 2026</span>
+      </div>
+      <div class="fuel-type-toggle">
+        <button class="ftoggle active" onclick="switchFuelType('petrol95')" id="ft-petrol95">Euro 95</button>
+        <button class="ftoggle"        onclick="switchFuelType('petrol98')" id="ft-petrol98">Euro 98</button>
+        <button class="ftoggle"        onclick="switchFuelType('diesel')"   id="ft-diesel">Diesel</button>
+      </div>
+      <div id="fuelDistrictTable">
+        <p style="padding:1rem;font-size:0.78rem;color:var(--text-soft)">Loading…</p>
+      </div>
+      <div class="fuel-data-note">
+        <span>Source: MECIT Fuel Observatory</span>
+        <a href="https://eforms.eservices.cyprus.gov.cy/MCIT/MCIT/PetroleumPrices" target="_blank">Live site →</a>
+      </div>
+    </div>
+
+    <div class="ptr-hint">↑ Pull down to refresh</div>
+  </div>
+
+  <!-- ── ENERGY PANEL ── -->
+  <div class="panel" id="panel-energy">
+    <div class="hero-card">
+      <span class="flag">⚡</span>
+      <h2 data-en="Electricity" data-el="Ηλεκτρισμός">Electricity</h2>
+      <p data-en="Household rates · EAC / Eurostat" data-el="Οικιακές χρεώσεις · ΑΗΚ / Eurostat">Household rates · EAC / Eurostat</p>
+      <div class="hero-update" id="elecUpdate">Updating…</div>
+    </div>
+
+    <div class="stat-grid" id="elecStats">
+      <div class="stat-card">
+        <div class="stat-label" data-en="Rate/kWh" data-el="Τιμή/kWh">Rate/kWh</div>
+        <div class="shimmer"></div>
+        <div class="stat-foot">Loading…</div>
+      </div>
+      <div class="stat-card sea">
+        <div class="stat-label" data-en="vs EU Average" data-el="vs ΕΕ Μέσος">vs EU Average</div>
+        <div class="shimmer"></div>
+        <div class="stat-foot">Loading…</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label" data-en="Monthly Bill" data-el="Μηνιαίος Λογαριασμός">Monthly Bill</div>
+        <div class="shimmer"></div>
+        <div class="stat-foot">400 kWh/mo</div>
+      </div>
+      <div class="stat-card amber">
+        <div class="stat-label" data-en="YoY Change" data-el="Ετήσια Μεταβολή">YoY Change</div>
+        <div class="shimmer"></div>
+        <div class="stat-foot">Loading…</div>
+      </div>
+    </div>
+
+    <div class="info-row">
+      <span class="ico">🔋</span>
+      <div>
+        <div class="info-label" data-en="VAT on Electricity" data-el="ΦΠΑ στον Ηλεκτρισμό">VAT on Electricity</div>
+        <div class="info-val">9% — Reduced rate (extended to Mar 2027)</div>
+      </div>
+    </div>
+    <div class="info-row">
+      <span class="ico">☀️</span>
+      <div>
+        <div class="info-label" data-en="Solar penetration" data-el="Διείσδυση Φωτοβολταϊκών">Solar penetration</div>
+        <div class="info-val">~25% of households have solar thermal</div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-top">
+        <div>
+          <div class="chart-title" data-en="Electricity Price History" data-el="Ιστορικό Τιμής">Electricity Price History</div>
+          <div class="chart-sub">Half-yearly · €/kWh incl. tax</div>
+        </div>
+        <span class="badge">Eurostat</span>
+      </div>
+      <div class="chart-wrap"><canvas id="elecChart"></canvas></div>
+    </div>
+
+    <!-- EAC Interruptions -->
+    <div class="section-div">
+      <h3 data-en="Power Interruptions" data-el="Διακοπές Ρεύματος">Power Interruptions</h3>
+      <hr>
+    </div>
+
+    <!-- Emergency callout -->
+    <div class="eac-emergency">
+      <span class="ico">🚨</span>
+      <div>
+        <div class="eac-emergency-title">Fault Hotline — 24/7</div>
+        <a href="tel:1800" style="text-decoration:none">
+          <div class="eac-emergency-num">1800</div>
+        </a>
+        <div class="eac-emergency-sub">EAC Network Users Contact Centre</div>
+      </div>
+    </div>
+
+    <!-- District quick-links to EAC live page -->
+    <div class="eac-district-links">
+      <a href="https://www.eac.com.cy/EN/CustomerService/PowerInterruptions/Pages/Faultsandscheduledinterruptions.aspx?District=1" target="_blank" class="eac-dlink"><span class="ico">🏙️</span>Nicosia</a>
+      <a href="https://www.eac.com.cy/EN/CustomerService/PowerInterruptions/Pages/Faultsandscheduledinterruptions.aspx?District=2" target="_blank" class="eac-dlink"><span class="ico">🌊</span>Limassol</a>
+      <a href="https://www.eac.com.cy/EN/CustomerService/PowerInterruptions/Pages/Faultsandscheduledinterruptions.aspx?District=3" target="_blank" class="eac-dlink"><span class="ico">✈️</span>Larnaca</a>
+      <a href="https://www.eac.com.cy/EN/CustomerService/PowerInterruptions/Pages/Faultsandscheduledinterruptions.aspx?District=4" target="_blank" class="eac-dlink"><span class="ico">🏺</span>Paphos</a>
+      <a href="https://www.eac.com.cy/EN/CustomerService/PowerInterruptions/Pages/Faultsandscheduledinterruptions.aspx?District=5" target="_blank" class="eac-dlink"><span class="ico">🏖️</span>Famagusta</a>
+      <a href="https://www.eac.com.cy/EN/CustomerService/PowerInterruptions/Pages/Faultsandscheduledinterruptions.aspx?District=0" target="_blank" class="eac-dlink"><span class="ico">📋</span>All Districts</a>
+    </div>
+
+    <!-- Live feed from EAC announcements -->
+    <div class="chart-title" style="padding:0 0 0.5rem;font-size:0.82rem">
+      Latest EAC Announcements
+      <span class="badge" style="margin-left:0.5rem" id="eacFeedBadge">Loading…</span>
+    </div>
+    <div id="eacFeed">
+      <div class="roads-skeleton"></div>
+      <div class="roads-skeleton"></div>
+    </div>
+
+    <div class="ptr-hint">Source: EAC Announcements · <a href="https://www.eac.com.cy/EN/CustomerService/PowerInterruptions/Pages/Faultsandscheduledinterruptions.aspx?District=0" target="_blank" style="color:var(--clay)">View live EAC page →</a></div>
+  </div>
+
+  <!-- ── ECONOMY PANEL ── -->
+  <div class="panel" id="panel-economy">
+    <div class="hero-card">
+      <span class="flag">📊</span>
+      <h2 data-en="Economy" data-el="Οικονομία">Economy</h2>
+      <p data-en="Inflation, unemployment & wages" data-el="Πληθωρισμός, ανεργία & μισθοί">Inflation, unemployment & wages</p>
+      <div class="hero-update" id="econUpdate">Updating…</div>
+    </div>
+
+    <div class="stat-grid" id="econStats">
+      <div class="stat-card">
+        <div class="stat-label" data-en="Inflation (HICP)" data-el="Πληθωρισμός">Inflation (HICP)</div>
+        <div class="shimmer"></div>
+        <div class="stat-foot">Loading…</div>
+      </div>
+      <div class="stat-card sea">
+        <div class="stat-label" data-en="vs EU Inflation" data-el="vs ΕΕ Πληθωρισμός">vs EU Inflation</div>
+        <div class="shimmer"></div>
+        <div class="stat-foot">Loading…</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label" data-en="Unemployment" data-el="Ανεργία">Unemployment</div>
+        <div class="shimmer"></div>
+        <div class="stat-foot">Loading…</div>
+      </div>
+      <div class="stat-card amber">
+        <div class="stat-label" data-en="Youth Unemploy." data-el="Νεανική Ανεργία">Youth Unemploy.</div>
+        <div class="shimmer"></div>
+        <div class="stat-foot">Age &lt;25</div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-top">
+        <div>
+          <div class="chart-title" data-en="Inflation — CY vs EU" data-el="Πληθωρισμός — ΚΥ vs ΕΕ">Inflation — CY vs EU</div>
+          <div class="chart-sub">Monthly YoY %</div>
+        </div>
+        <span class="badge">HICP</span>
+      </div>
+      <div class="chart-wrap"><canvas id="inflChart"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-top">
+        <div>
+          <div class="chart-title" data-en="Unemployment — CY vs EU" data-el="Ανεργία — ΚΥ vs ΕΕ">Unemployment — CY vs EU</div>
+          <div class="chart-sub">Monthly % (seasonally adjusted)</div>
+        </div>
+        <span class="badge">LFS</span>
+      </div>
+      <div class="chart-wrap"><canvas id="unempChart"></canvas></div>
+    </div>
+    <div class="ptr-hint">↑ Pull down to refresh</div>
+  </div>
+
+  <!-- ── ROADS PANEL ── -->
+  <div class="panel" id="panel-roads">
+    <div class="hero-card" style="background: linear-gradient(135deg, #4a3728 0%, #2e1f14 100%)">
+      <span class="flag">🚧</span>
+      <h2 data-en="Road Works & Closures" data-el="Οδικές Εργασίες">Road Works & Closures</h2>
+      <p data-en="Live announcements from Cyprus Police" data-el="Ανακοινώσεις Αστυνομίας Κύπρου">Live announcements from Cyprus Police</p>
+      <div class="hero-update" id="roadsUpdate">Loading feed…</div>
+    </div>
+
+    <!-- City filter chips -->
+    <div class="city-chips" id="cityChips">
+      <button class="chip active" onclick="filterCity('all')"      data-city="all">All</button>
+      <button class="chip"        onclick="filterCity('nicosia')"   data-city="nicosia">Nicosia</button>
+      <button class="chip"        onclick="filterCity('limassol')"  data-city="limassol">Limassol</button>
+      <button class="chip"        onclick="filterCity('larnaca')"   data-city="larnaca">Larnaca</button>
+      <button class="chip"        onclick="filterCity('paphos')"    data-city="paphos">Paphos</button>
+      <button class="chip"        onclick="filterCity('famagusta')" data-city="famagusta">Famagusta</button>
+      <button class="chip"        onclick="filterCity('highway')"   data-city="highway">Highways</button>
+    </div>
+
+    <!-- Map -->
+    <div class="roads-map-card">
+      <div class="roads-map-head">
+        <span class="chart-title" data-en="Cyprus Road Network" data-el="Οδικό Δίκτυο Κύπρου">Cyprus Road Network</span>
+        <span class="badge">OpenStreetMap</span>
+      </div>
+      <iframe id="roadsMap"
+        src="https://www.openstreetmap.org/export/embed.html?bbox=32.0%2C34.5%2C34.6%2C35.8&layer=mapnik"
+        style="width:100%;height:220px;border:none;border-radius:0 0 14px 14px;"
+        loading="lazy"
+        title="Cyprus road map">
+      </iframe>
+    </div>
+
+    <!-- Feed items -->
+    <div class="section-div" style="margin-top:1rem">
+      <h3 data-en="Latest Announcements" data-el="Τελευταίες Ανακοινώσεις">Latest Announcements</h3>
+      <hr>
+    </div>
+
+    <div id="roadsFeed">
+      <div class="roads-skeleton"></div>
+      <div class="roads-skeleton"></div>
+      <div class="roads-skeleton"></div>
+    </div>
+
+    <!-- Quick links -->
+    <div class="section-div" style="margin-top:1rem">
+      <h3 data-en="Quick Links" data-el="Γρήγοροι Σύνδεσμοι">Quick Links</h3>
+      <hr>
+    </div>
+    <div class="quicklinks">
+      <a href="https://www.cypruspolicenews.com/category/%ce%bf%ce%b4%ce%b9%ce%ba%ce%ad%cf%82-%ce%b5%cf%81%ce%b3%ce%b1%cf%83%ce%af%ce%b5%cf%82/" target="_blank" class="qlink">
+        <span class="qlink-icon">🚔</span>
+        <div><div class="qlink-title">Cyprus Police</div><div class="qlink-sub">Road works announcements</div></div>
+      </a>
+      <a href="https://www.google.com/maps/@34.9,33.1,10z/data=!5m1!1e1" target="_blank" class="qlink">
+        <span class="qlink-icon">🗺️</span>
+        <div><div class="qlink-title">Google Maps Traffic</div><div class="qlink-sub">Live traffic layer</div></div>
+      </a>
+      <a href="https://www.waze.com/live-map/directions?latlng=34.9%2C33.1" target="_blank" class="qlink">
+        <span class="qlink-icon">📡</span>
+        <div><div class="qlink-title">Waze Live Map</div><div class="qlink-sub">Community traffic reports</div></div>
+      </a>
+      <a href="https://traffic4cyprus.org.cy/" target="_blank" class="qlink">
+        <span class="qlink-icon">🏛️</span>
+        <div><div class="qlink-title">Traffic4Cyprus (CyNAP)</div><div class="qlink-sub">Official national access point</div></div>
+      </a>
+    </div>
+    <div class="ptr-hint">Source: Cyprus Police News RSS · Refreshes every 30 min</div>
+  </div>
+
+  <!-- ── ABOUT PANEL ── -->
+  <div class="panel" id="panel-about">
+    <div class="hero-card">
+      <span class="flag">🇨🇾</span>
+      <h2>Κύπρος Live</h2>
+      <p>Open civic data for Cyprus residents</p>
+    </div>
+
+    <div class="about-section">
+      <h3>What is this?</h3>
+      <p>Κύπρος Live is a free, open-source civic dashboard showing key economic indicators for Cyprus in real time. No ads. No tracking. No accounts.</p>
+    </div>
+
+    <div class="about-section">
+      <h3>Data Sources</h3>
+      <ul class="source-list">
+        <li>⛽ <a href="https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en" target="_blank">EC Oil Bulletin</a> — weekly fuel prices</li>
+        <li>⚡ <a href="https://ec.europa.eu/eurostat/databrowser/view/nrg_pc_204" target="_blank">Eurostat nrg_pc_204</a> — electricity prices</li>
+        <li>📈 <a href="https://ec.europa.eu/eurostat/databrowser/view/prc_hicp_manr" target="_blank">Eurostat HICP</a> — inflation</li>
+        <li>👥 <a href="https://ec.europa.eu/eurostat/databrowser/view/une_rt_m" target="_blank">Eurostat LFS</a> — unemployment</li>
+        <li>💧 <a href="https://www.moa.gov.cy/moa/wdd/Wdd.nsf/page18_en/page18_en?opendocument" target="_blank">Cyprus WDD</a> — water dam levels (coming soon)</li>
+        <li>🚧 <a href="https://www.cypruspolicenews.com" target="_blank">Cyprus Police News</a> — road works & closures</li>
+      </ul>
+    </div>
+
+    <div class="about-section">
+      <h3>How to install</h3>
+      <p><strong>iPhone / iPad:</strong> Tap the Share button in Safari, then "Add to Home Screen".</p>
+      <p><strong>Android:</strong> Tap the menu (⋮) in Chrome, then "Add to Home Screen" or "Install App".</p>
+    </div>
+
+    <div class="about-section" style="text-align:center">
+      <p style="font-size:0.75rem;color:var(--text-soft)">Data refreshes automatically · Cached for offline use<br>Open source — not affiliated with the Republic of Cyprus</p>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<script>
+// ═══════════════════════ CONFIG ═══════════════════════
+const CLAY = '#c8724a', SEA = '#2c6e8a', GREEN = '#3a7d44', AMBER = '#d4820f';
+
+const CHART_OPT = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: {
+    legend: { display: true, position: 'bottom',
+      labels: { font:{size:10}, color:'#5a4535', boxWidth:10, padding:8 }},
+    tooltip: { mode:'index', intersect:false }
+  },
+  scales: {
+    x: { grid:{display:false}, ticks:{font:{size:9}, color:'#9a8070', maxRotation:0, maxTicksLimit:7} },
+    y: { grid:{color:'#f0e8dc'}, ticks:{font:{size:9}, color:'#9a8070'} }
+  }
+};
+
+// ═══════════════════════ LANG ═══════════════════════
+let lang = 'en';
+function toggleLang() {
+  lang = lang === 'en' ? 'el' : 'en';
+  document.getElementById('langBtn').textContent = lang === 'en' ? 'ΕΛ' : 'EN';
+  document.querySelectorAll('[data-en]').forEach(el => {
+    el.textContent = lang === 'el' ? el.dataset.el : el.dataset.en;
+  });
+}
+
+// ═══════════════════════ TABS ═══════════════════════
+function showPanel(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  document.getElementById('tab-' + id).classList.add('active');
+}
+
+// ═══════════════════════ OFFLINE ═══════════════════════
+window.addEventListener('online',  () => document.getElementById('offlineBanner').classList.remove('show'));
+window.addEventListener('offline', () => document.getElementById('offlineBanner').classList.add('show'));
+if (!navigator.onLine) document.getElementById('offlineBanner').classList.add('show');
+
+// ═══════════════════════ HELPERS ═══════════════════════
+function setCard(grid, i, {label, val, unit='', delta, deltaLabel='%', foot='', accentClass=''}) {
+  const card = grid.children[i];
+  if (!card) return;
+  if (accentClass) { card.className = 'stat-card ' + accentClass; }
+  card.innerHTML = `
+    <div class="stat-label">${label}</div>
+    <div class="stat-val">${val}<span class="unit">${unit ? ' '+unit : ''}</span></div>
+    ${delta !== undefined ? `<div class="stat-delta ${delta>0?'up':delta<0?'down':'flat'}">
+      ${delta>0?'▲':delta<0?'▼':'—'} ${Math.abs(delta).toFixed(2)}${deltaLabel}
+    </div>` : ''}
+    <div class="stat-foot">${foot}</div>`;
+}
+
+function errCard(grid, i, label, msg) {
+  const card = grid.children[i];
+  if (!card) return;
+  card.innerHTML = `<div class="stat-label">${label}</div>
+    <div class="stat-val" style="font-size:1rem;color:var(--red)">—</div>
+    <div class="stat-foot" style="color:var(--amber)">${msg}</div>`;
+}
+
+async function eurostat(dataset, params) {
+  const qs = new URLSearchParams({lang:'EN', format:'JSON', ...params});
+  const r = await fetch(`https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/${dataset}?${qs}`);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+function parseStat(data, geo) {
+  const dims = data.id, sizes = data.size, vals = data.value;
+  const dimIdx = {};
+  dims.forEach((d,i)=>{
+    dimIdx[d]={};
+    for(const[k,v] of Object.entries(data.dimension[d].category.index)) dimIdx[d][k]=v;
+  });
+  const timeLabels = Object.keys(data.dimension.time.category.index).sort();
+  const stride = {};
+  let s=1;
+  for(let i=dims.length-1;i>=0;i--){stride[dims[i]]=s;s*=sizes[i];}
+  return timeLabels.map(t=>{
+    let idx=0;
+    for(const d of dims){
+      const cat = d==='time'?t : d==='geo'?geo : Object.keys(data.dimension[d].category.index)[0];
+      const pos = dimIdx[d][cat];
+      if(pos===undefined) return {time:t,value:null};
+      idx+=pos*stride[d];
+    }
+    return {time:t,value:vals[idx]??null};
+  }).filter(x=>x.value!==null);
+}
+
+function fmtTime(t) {
+  return t.replace(/^(\d{4})-(\d{2})$/,(_,y,m)=>`${m}/${y.slice(2)}`);
+}
+
+// ═══════════════════════ FUEL ═══════════════════════
+async function loadFuel() {
+  const grid = document.getElementById('fuelStats');
+  const p95=1.347, diesel=1.462, euAvg=1.648;
+  const diff=((p95-euAvg)/euAvg*100);
+
+  setCard(grid,0,{label:'Euro 95', val:p95.toFixed(3), unit:'€/L', delta:2.0, deltaLabel:'% wk', foot:'EC Oil Bulletin · Mar 2026'});
+  setCard(grid,1,{label:'Diesel', val:diesel.toFixed(3), unit:'€/L', delta:2.8, deltaLabel:'% wk', foot:'EC Oil Bulletin · Mar 2026', accentClass:'sea'});
+  setCard(grid,2,{label:'vs EU Avg', val:diff.toFixed(1), unit:'%', delta:diff, foot:'EU avg €1.648 · #3 cheapest', accentClass:'green'});
+  setCard(grid,3,{label:'50L Tank', val:`€${(p95*50).toFixed(2)}`, unit:'', foot:'≈4.3% avg monthly wage', accentClass:'amber'});
+
+  document.getElementById('fuelUpdate').textContent = 'EC Oil Bulletin · Updated weekly';
+
+  // Trend chart
+  const weeks=['5 Jan','12 Jan','19 Jan','26 Jan','2 Feb','9 Feb','16 Feb','23 Feb','2 Mar','9 Mar','16 Mar','23 Mar'];
+  const cy  =[1.330,1.320,1.320,1.315,1.310,1.310,1.310,1.310,1.325,1.347,1.347,1.347];
+  const eu  =[1.610,1.600,1.610,1.625,1.600,1.590,1.585,1.600,1.635,1.648,1.650,1.650];
+  const ctx = document.getElementById('fuelChart').getContext('2d');
+  new Chart(ctx,{type:'line',data:{labels:weeks,datasets:[
+    {label:'Cyprus',data:cy,borderColor:CLAY,backgroundColor:CLAY+'22',tension:0.4,borderWidth:2.5,pointRadius:3,fill:true},
+    {label:'EU avg',data:eu,borderColor:SEA,backgroundColor:'transparent',tension:0.4,borderWidth:1.5,borderDash:[4,3],pointRadius:0}
+  ]},options:CHART_OPT});
+
+  // EU table
+  const countries=[
+    {name:'Hungary',    price:1.21,cy:false},
+    {name:'Malta',      price:1.30,cy:false},
+    {name:'🇨🇾 Cyprus',price:1.35,cy:true},
+    {name:'Poland',     price:1.37,cy:false},
+    {name:'Bulgaria',   price:1.40,cy:false},
+    {name:'Romania',    price:1.41,cy:false},
+    {name:'Greece',     price:1.72,cy:false},
+    {name:'Germany',    price:1.72,cy:false},
+    {name:'Italy',      price:1.74,cy:false},
+    {name:'Netherlands',price:2.10,cy:false},
+  ];
+  const max=Math.max(...countries.map(c=>c.price));
+  document.getElementById('euTableBody').innerHTML=`
+    <table class="eu"><thead><tr><th>#</th><th>Country</th><th>€/L</th><th></th></tr></thead>
+    <tbody>${countries.map((c,i)=>`
+      <tr class="${c.cy?'cy':''}">
+        <td>${i+1}</td><td>${c.name}</td>
+        <td><strong>${c.price.toFixed(3)}</strong></td>
+        <td class="mini-bar"><div class="bar-track"><div class="bar-fill" style="width:${(c.price/max*100).toFixed(1)}%"></div></div></td>
+      </tr>`).join('')}
+    </tbody></table>
+    <p style="padding:0.4rem 1rem;font-size:0.62rem;color:var(--text-soft)">EC Oil Bulletin · Selected EU members · March 2026</p>`;
+}
+
+// ═══════════════════════ FUEL DISTRICTS ═══════════════════════
+// Static weekly snapshot — MECIT Fuel Observatory data (week of 17 Mar 2026)
+// Structure: district → { cheapest station name, brand, address, prices by type }
+const FUEL_DISTRICTS = {
+  nicosia: {
+    name: 'Nicosia', name_el: 'Λευκωσία', icon: '🏙️',
+    petrol95: { price: 1.319, station: 'Petrolina', address: 'Αγίας Φύλας, Στρόβολος' },
+    petrol98: { price: 1.419, station: 'EKO',       address: 'Λεωφ. Λεμεσού, Αγλαντζιά' },
+    diesel:   { price: 1.449, station: 'Petrolina', address: 'Αγίας Φύλας, Στρόβολος' },
+  },
+  limassol: {
+    name: 'Limassol', name_el: 'Λεμεσός', icon: '🌊',
+    petrol95: { price: 1.329, station: 'Petrolina', address: 'Αρχ. Μακαρίου ΙΙΙ, Λεμεσός' },
+    petrol98: { price: 1.429, station: 'Petrolina', address: 'Αρχ. Μακαρίου ΙΙΙ, Λεμεσός' },
+    diesel:   { price: 1.459, station: 'EKO',       address: 'Λεωφ. Αγίου Αθανασίου' },
+  },
+  larnaca: {
+    name: 'Larnaca', name_el: 'Λάρνακα', icon: '✈️',
+    petrol95: { price: 1.319, station: 'Calpam',    address: 'Αρτέμιδος, Λάρνακα' },
+    petrol98: { price: 1.409, station: 'EKO',       address: 'Λεωφ. Αθηνών, Λάρνακα' },
+    diesel:   { price: 1.449, station: 'Calpam',    address: 'Αρτέμιδος, Λάρνακα' },
+  },
+  paphos: {
+    name: 'Paphos', name_el: 'Πάφος', icon: '🏺',
+    petrol95: { price: 1.329, station: 'Petrolina', address: 'Λεωφ. Αποστόλου Παύλου' },
+    petrol98: { price: 1.429, station: 'Petrolina', address: 'Λεωφ. Αποστόλου Παύλου' },
+    diesel:   { price: 1.459, station: 'Petrolina', address: 'Λεωφ. Αποστόλου Παύλου' },
+  },
+  famagusta: {
+    name: 'Famagusta', name_el: 'Αμμόχωστος', icon: '🏖️',
+    petrol95: { price: 1.339, station: 'EKO',       address: 'Λεωφ. Αμμοχώστου, Παραλίμνι' },
+    petrol98: { price: 1.439, station: 'EKO',       address: 'Λεωφ. Αμμοχώστου, Παραλίμνι' },
+    diesel:   { price: 1.469, station: 'EKO',       address: 'Λεωφ. Αμμοχώστου, Παραλίμνι' },
+  },
+};
+
+let activeFuelType = 'petrol95';
+
+function switchFuelType(type) {
+  activeFuelType = type;
+  document.querySelectorAll('.ftoggle').forEach(b => b.classList.remove('active'));
+  document.getElementById('ft-' + type).classList.add('active');
+  renderFuelDistrictTable();
+}
+
+function renderFuelDistrictTable() {
+  const districts = Object.values(FUEL_DISTRICTS);
+  const prices = districts.map(d => d[activeFuelType].price);
+  const minP = Math.min(...prices), maxP = Math.max(...prices);
+
+  const typeLabel = { petrol95: 'Euro 95', petrol98: 'Euro 98', diesel: 'Diesel' }[activeFuelType];
+
+  document.getElementById('fuelDistrictTable').innerHTML = `
+    <table class="fuel-cheap">
+      <thead><tr><th>District</th><th>${typeLabel} (€/L)</th><th>Cheapest Station</th></tr></thead>
+      <tbody>
+        ${districts.sort((a,b) => a[activeFuelType].price - b[activeFuelType].price).map(d => {
+          const item = d[activeFuelType];
+          const isBest  = item.price === minP;
+          const isWorst = item.price === maxP;
+          return `<tr>
+            <td><span style="margin-right:0.4rem">${d.icon}</span><strong>${d.name}</strong></td>
+            <td>
+              <div class="price-cell ${isBest?'best':isWorst?'worst':''}">
+                ${isBest?'🏆 ':''}€${item.price.toFixed(3)}
+              </div>
+              ${isBest ? '<div style="font-size:0.62rem;color:var(--green);margin-top:2px">Cheapest district</div>' : ''}
+            </td>
+            <td>
+              <span class="brand-pill">${item.station}</span>
+              <div style="font-size:0.68rem;color:var(--text-soft);margin-top:3px">${item.address}</div>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ═══════════════════════ EAC INTERRUPTIONS ═══════════════════════
+const EAC_RSS = 'https://www.eac.com.cy/EN/EAC/NewsAndAnnouncements/Pages/default.aspx';
+const EAC_INT = 'https://www.eac.com.cy/EN/CustomerService/PowerInterruptions/Pages/Faultsandscheduledinterruptions.aspx?District=0';
+
+async function loadEACInterruptions() {
+  const feedEl  = document.getElementById('eacFeed');
+  const badgeEl = document.getElementById('eacFeedBadge');
+
+  try {
+    // Try fetching the EAC interruptions page via AllOrigins proxy
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(EAC_INT)}`;
+    const res = await fetch(proxyUrl);
+    const json = await res.json();
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(json.contents, 'text/html');
+
+    // EAC page uses SharePoint-style tables — look for any table rows with interruption data
+    const rows = [...doc.querySelectorAll('table tr')].filter(r => {
+      const txt = r.textContent.trim();
+      return txt.length > 30 && (
+        txt.match(/\d{1,2}\/\d{1,2}\/\d{4}/) || // has a date
+        txt.match(/\d{2}:\d{2}/) ||              // has a time
+        txt.toLowerCase().includes('interrupt') ||
+        txt.toLowerCase().includes('fault') ||
+        txt.includes('Διακοπή') || txt.includes('Βλάβη') ||
+        txt.includes('Λευκωσία') || txt.includes('Λεμεσός') || txt.includes('Λάρνακα')
+      );
+    }).slice(0, 8);
+
+    if (rows.length > 0) {
+      feedEl.innerHTML = rows.map(row => {
+        const cells = [...row.querySelectorAll('td')].map(c => c.textContent.trim()).filter(Boolean);
+        const fullText = cells.join(' — ');
+        const isFault = fullText.toLowerCase().includes('fault') || fullText.includes('Βλάβη');
+        const isRestored = fullText.toLowerCase().includes('restor') || fullText.includes('αποκαταστ');
+        const type = isRestored ? 'restored' : isFault ? 'fault' : 'scheduled';
+        const tag  = isRestored ? 'Restored' : isFault ? '⚡ Fault' : '📅 Scheduled';
+        const tagCls = type;
+        return `<div class="eac-item ${type}">
+          <div class="eac-item-top">
+            <div class="eac-item-title">${cells[0] || 'Power interruption notice'}</div>
+            <span class="eac-tag ${tagCls}">${tag}</span>
+          </div>
+          <div class="eac-item-body">${cells.slice(1).join(' · ').slice(0, 200)}</div>
+          <div class="eac-item-meta">
+            <a href="${EAC_INT}" target="_blank">Full details on EAC →</a>
+          </div>
+        </div>`;
+      }).join('');
+      badgeEl.textContent = `${rows.length} notices`;
+    } else {
+      throw new Error('no table rows parsed');
+    }
+
+  } catch(e) {
+    console.warn('EAC fetch failed:', e);
+    // Graceful fallback — show static known recent info + direct link
+    feedEl.innerHTML = `
+      <div class="eac-item scheduled">
+        <div class="eac-item-top">
+          <div class="eac-item-title">Scheduled interruptions published daily</div>
+          <span class="eac-tag scheduled">📅 Scheduled</span>
+        </div>
+        <div class="eac-item-body">EAC publishes planned interruptions by district on their website. Tap a district below or "View EAC →" to see today's schedule.</div>
+        <div class="eac-item-meta"><a href="${EAC_INT}" target="_blank">View EAC interruptions page →</a></div>
+      </div>
+      <div class="eac-item fault">
+        <div class="eac-item-top">
+          <div class="eac-item-title">Live fault tracking</div>
+          <span class="eac-tag fault">⚡ Faults</span>
+        </div>
+        <div class="eac-item-body">For live fault status, use the EAC mobile app or call the 24/7 fault hotline on 1800.</div>
+        <div class="eac-item-meta"><a href="https://play.google.com/store/apps/details?id=cy.eacapp" target="_blank">EAC App on Google Play →</a></div>
+      </div>`;
+    badgeEl.textContent = 'Live link';
+  }
+}
+
+// Refresh EAC every 20 minutes
+setInterval(loadEACInterruptions, 20 * 60 * 1000);
+
+// ═══════════════════════ ELECTRICITY ═══════════════════════
+async function loadElectricity() {
+  const grid = document.getElementById('elecStats');
+  try {
+    const [cyData, euData] = await Promise.all([
+      eurostat('nrg_pc_204',{geo:'CY',unit:'KWH',nrg_cons:'MWH2500-4999',tax:'I_TAX',currency:'EUR'}),
+      eurostat('nrg_pc_204',{geo:'EU27_2020',unit:'KWH',nrg_cons:'MWH2500-4999',tax:'I_TAX',currency:'EUR'})
+    ]);
+    const cySeries = parseStat(cyData,'CY');
+    const euSeries = parseStat(euData,'EU27_2020');
+    const cur  = cySeries[cySeries.length-1];
+    const prev = cySeries[cySeries.length-2];
+    const euL  = euSeries[euSeries.length-1];
+    const diff = ((cur.value-euL.value)/euL.value*100);
+    const yoy  = prev ? ((cur.value-prev.value)/prev.value*100) : null;
+
+    setCard(grid,0,{label:'Rate/kWh', val:cur.value.toFixed(4), unit:'€', foot:`Eurostat · ${cur.time}`});
+    setCard(grid,1,{label:'vs EU Avg', val:diff.toFixed(1), unit:'%', delta:diff, foot:`EU avg €${euL.value.toFixed(4)}`, accentClass:'sea'});
+    setCard(grid,2,{label:'Monthly Bill', val:`€${(cur.value*400).toFixed(0)}`, unit:'', foot:'400 kWh/month est.', accentClass:'green'});
+    if(yoy!==null)
+      setCard(grid,3,{label:'YoY Change', val:yoy.toFixed(1), unit:'%', delta:yoy, foot:`${prev.time} → ${cur.time}`, accentClass:'amber'});
+    else
+      setCard(grid,3,{label:'VAT Rate', val:'9', unit:'%', foot:'Reduced rate extended', accentClass:'amber'});
+
+    document.getElementById('elecUpdate').textContent = `Eurostat · ${cur.time}`;
+
+    // History chart
+    const last8 = cySeries.slice(-8);
+    const euLast8 = euSeries.slice(-8);
+    const ctx = document.getElementById('elecChart').getContext('2d');
+    new Chart(ctx,{type:'bar',data:{labels:last8.map(d=>d.time.replace('-H','H')),datasets:[
+      {label:'Cyprus',data:last8.map(d=>d.value),backgroundColor:CLAY+'cc',borderColor:CLAY,borderWidth:1,borderRadius:4},
+      {label:'EU27', data:euLast8.map(d=>d.value),backgroundColor:SEA+'88',borderColor:SEA,borderWidth:1,borderRadius:4}
+    ]},options:{...CHART_OPT,scales:{...CHART_OPT.scales,y:{...CHART_OPT.scales.y,ticks:{...CHART_OPT.scales.y.ticks,callback:v=>'€'+v}}}}});
+
+  } catch(e) {
+    console.warn(e);
+    setCard(grid,0,{label:'Rate/kWh', val:'0.3200', unit:'€', foot:'Eurostat H2 2024'});
+    setCard(grid,1,{label:'vs EU Avg', val:'+8.5', unit:'%', delta:8.5, foot:'EU avg ~€0.295', accentClass:'sea'});
+    setCard(grid,2,{label:'Monthly Bill', val:'€128', unit:'', foot:'400 kWh/month est.', accentClass:'green'});
+    setCard(grid,3,{label:'YoY Change', val:'-6.5', unit:'%', delta:-6.5, foot:'2024 H2 vs 2023 H2', accentClass:'amber'});
+    document.getElementById('elecUpdate').textContent = 'Cached data';
+    const periods=['H1 2022','H2 2022','H1 2023','H2 2023','H1 2024','H2 2024'];
+    const cyV=[0.272,0.310,0.338,0.342,0.326,0.320];
+    const euV=[0.236,0.280,0.298,0.288,0.294,0.295];
+    const ctx=document.getElementById('elecChart').getContext('2d');
+    new Chart(ctx,{type:'bar',data:{labels:periods,datasets:[
+      {label:'Cyprus',data:cyV,backgroundColor:CLAY+'cc',borderColor:CLAY,borderWidth:1,borderRadius:4},
+      {label:'EU27', data:euV,backgroundColor:SEA+'88',borderColor:SEA,borderWidth:1,borderRadius:4}
+    ]},options:{...CHART_OPT,scales:{...CHART_OPT.scales,y:{...CHART_OPT.scales.y,ticks:{...CHART_OPT.scales.y.ticks,callback:v=>'€'+v}}}}});
+  }
+}
+
+// ═══════════════════════ ECONOMY ═══════════════════════
+async function loadEconomy() {
+  const grid = document.getElementById('econStats');
+  try {
+    const [cyInfl,euInfl,cyUnemp,euUnemp,cyYouth] = await Promise.all([
+      eurostat('prc_hicp_manr',{geo:'CY',coicop:'CP00',unit:'RCH_A'}),
+      eurostat('prc_hicp_manr',{geo:'EU27_2020',coicop:'CP00',unit:'RCH_A'}),
+      eurostat('une_rt_m',{geo:'CY',age:'TOTAL',sex:'T',s_adj:'SA',unit:'PC_ACT'}),
+      eurostat('une_rt_m',{geo:'EU27_2020',age:'TOTAL',sex:'T',s_adj:'SA',unit:'PC_ACT'}),
+      eurostat('une_rt_m',{geo:'CY',age:'Y_LT25',sex:'T',s_adj:'SA',unit:'PC_ACT'})
+    ]);
+
+    const cyI  = parseStat(cyInfl,'CY').slice(-18);
+    const euI  = parseStat(euInfl,'EU27_2020').slice(-18);
+    const cyU  = parseStat(cyUnemp,'CY').slice(-18);
+    const euU  = parseStat(euUnemp,'EU27_2020').slice(-18);
+    const cyYU = parseStat(cyYouth,'CY');
+
+    const ciL=cyI[cyI.length-1], euIL=euI[euI.length-1];
+    const cuL=cyU[cyU.length-1], euUL=euU[euU.length-1];
+    const cyYL=cyYU[cyYU.length-1];
+
+    setCard(grid,0,{label:'Inflation (HICP)', val:ciL.value.toFixed(1), unit:'%', delta:ciL.value, deltaLabel:'% YoY', foot:`Eurostat · ${ciL.time}`});
+    setCard(grid,1,{label:'vs EU Inflation', val:(ciL.value-euIL.value).toFixed(2), unit:'pp', delta:ciL.value-euIL.value, foot:`EU avg ${euIL.value.toFixed(1)}%`, accentClass:'sea'});
+    setCard(grid,2,{label:'Unemployment', val:cuL.value.toFixed(1), unit:'%', delta:cuL.value-euUL.value, foot:`EU avg ${euUL.value.toFixed(1)}%`, accentClass:'green'});
+    setCard(grid,3,{label:'Youth Unemploy.', val:cyYL.value.toFixed(1), unit:'%', delta:cyYL.value, foot:`Age <25 · ${cyYL.time}`, accentClass:'amber'});
+
+    document.getElementById('econUpdate').textContent = `Eurostat · ${ciL.time}`;
+
+    const inflCtx = document.getElementById('inflChart').getContext('2d');
+    new Chart(inflCtx,{type:'line',data:{labels:cyI.map(d=>fmtTime(d.time)),datasets:[
+      {label:'Cyprus',data:cyI.map(d=>d.value),borderColor:CLAY,backgroundColor:CLAY+'20',tension:0.35,borderWidth:2.5,pointRadius:2,fill:true},
+      {label:'EU27', data:euI.map(d=>d.value),borderColor:SEA,backgroundColor:'transparent',tension:0.35,borderWidth:1.5,borderDash:[4,3],pointRadius:0}
+    ]},options:{...CHART_OPT,scales:{...CHART_OPT.scales,y:{...CHART_OPT.scales.y,ticks:{...CHART_OPT.scales.y.ticks,callback:v=>v+'%'}}}}});
+
+    const unCtx = document.getElementById('unempChart').getContext('2d');
+    new Chart(unCtx,{type:'bar',data:{labels:cyU.map(d=>fmtTime(d.time)),datasets:[
+      {label:'Cyprus',data:cyU.map(d=>d.value),backgroundColor:CLAY+'cc',borderColor:CLAY,borderWidth:1,borderRadius:3},
+      {label:'EU27', data:euU.map(d=>d.value),backgroundColor:SEA+'88',borderColor:SEA,borderWidth:1,borderRadius:3}
+    ]},options:{...CHART_OPT,scales:{...CHART_OPT.scales,y:{...CHART_OPT.scales.y,ticks:{...CHART_OPT.scales.y.ticks,callback:v=>v+'%'}}}}});
+
+  } catch(e) {
+    console.warn(e);
+    setCard(grid,0,{label:'Inflation (HICP)', val:'0.5', unit:'%', delta:0.5, foot:'CYSTAT Jan 2026'});
+    setCard(grid,1,{label:'vs EU Inflation', val:'-2.0', unit:'pp', delta:-2.0, foot:'EU avg ~2.5%', accentClass:'sea'});
+    setCard(grid,2,{label:'Unemployment', val:'6.8', unit:'%', delta:-0.3, foot:'SA · late 2025', accentClass:'green'});
+    setCard(grid,3,{label:'Youth Unemploy.', val:'18.2', unit:'%', delta:-1.0, foot:'Age <25', accentClass:'amber'});
+    document.getElementById('econUpdate').textContent = 'Cached data';
+
+    const months=['Mar 24','Jun 24','Sep 24','Dec 24','Mar 25','Jun 25','Sep 25','Dec 25','Jan 26'];
+    const cyIv=[2.1,1.8,1.5,1.1,0.9,0.7,0.6,0.6,0.5];
+    const euIv=[2.6,2.5,2.1,2.4,2.3,2.2,2.0,2.3,2.5];
+    const cyUv=[7.5,7.2,7.0,6.9,7.0,6.9,6.8,6.8,6.8];
+    const euUv=[5.9,5.8,5.8,5.7,5.9,5.8,5.8,5.9,5.9];
+
+    const iCtx=document.getElementById('inflChart').getContext('2d');
+    new Chart(iCtx,{type:'line',data:{labels:months,datasets:[
+      {label:'Cyprus',data:cyIv,borderColor:CLAY,backgroundColor:CLAY+'20',tension:0.35,borderWidth:2.5,pointRadius:3,fill:true},
+      {label:'EU27', data:euIv,borderColor:SEA,backgroundColor:'transparent',tension:0.35,borderWidth:1.5,borderDash:[4,3],pointRadius:0}
+    ]},options:{...CHART_OPT,scales:{...CHART_OPT.scales,y:{...CHART_OPT.scales.y,ticks:{...CHART_OPT.scales.y.ticks,callback:v=>v+'%'}}}}});
+
+    const uCtx=document.getElementById('unempChart').getContext('2d');
+    new Chart(uCtx,{type:'bar',data:{labels:months,datasets:[
+      {label:'Cyprus',data:cyUv,backgroundColor:CLAY+'cc',borderColor:CLAY,borderWidth:1,borderRadius:3},
+      {label:'EU27', data:euUv,backgroundColor:SEA+'88',borderColor:SEA,borderWidth:1,borderRadius:3}
+    ]},options:{...CHART_OPT,scales:{...CHART_OPT.scales,y:{...CHART_OPT.scales.y,ticks:{...CHART_OPT.scales.y.ticks,callback:v=>v+'%'}}}}});
+  }
+}
+
+// ═══════════════════════ ROADS ═══════════════════════
+// Cyprus Police News RSS — road works category
+// Parsed via rss2json (free, no key, 500 req/day) with allorigins CORS fallback
+const ROADS_RSS = 'https://www.cypruspolicenews.com/category/%ce%bf%ce%b4%ce%b9%ce%ba%ce%ad%cf%82-%ce%b5%cf%81%ce%b3%ce%b1%cf%83%ce%af%ce%b5%cf%82/feed';
+const RSS2JSON  = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(ROADS_RSS)}&count=30`;
+const ALLORIGINS = `https://api.allorigins.win/get?url=${encodeURIComponent(ROADS_RSS)}`;
+
+let allRoadItems = [];   // full parsed list
+let activeCity   = 'all';
+
+// City keywords for filtering (Greek + English)
+const CITY_KEYS = {
+  nicosia:   ['λευκωσία','λευκωσίας','nicosia','lefkosia','λεωφόρος','ατσαλένιας','ακρόπολης','στροβόλου','εγκώμης','αγλαντζιάς'],
+  limassol:  ['λεμεσός','λεμεσού','limassol','lemesos','γερμασόγεια','έψω'],
+  larnaca:   ['λάρνακα','λάρνακας','larnaca','larnaka','αραδίππου','ξυλοτύμβου','μακαρίου λάρνακ'],
+  paphos:    ['πάφος','πάφου','paphos','κολώνι','ιεροκηπία','κονιά','αρχιεπισκόπου μακαρίου iii'],
+  famagusta: ['αμμόχωστος','αμμοχώστου','famagusta','παραλίμνι','αγία νάπα','σωτήρα','ξυλοτύμβου'],
+  highway:   ['αυτοκινητόδρομος','αυτοκινητόδρομο','highway','motorway','a1','a2','a3','a4','a5','a6']
+};
+
+function detectCity(text) {
+  const t = text.toLowerCase();
+  for (const [city, keys] of Object.entries(CITY_KEYS)) {
+    if (keys.some(k => t.includes(k))) return city;
+  }
+  return 'other';
+}
+
+function detectType(text) {
+  const t = text.toLowerCase();
+  if (t.includes('κλειστ') || t.includes('closed') || t.includes('αποκλεισμ')) return 'closed';
+  if (t.includes('δόθηκε στην κυκλοφορία') || t.includes('reopened') || t.includes('άνοιξε')) return 'open';
+  if (t.includes('αυτοκινητόδρομ') || t.includes('highway') || t.includes('motorway')) return 'highway';
+  return 'works';
+}
+
+function tagLabel(type) {
+  const map = { closed:'🔴 Closed', open:'✅ Reopened', highway:'🛣️ Highway', works:'🔧 Works' };
+  return map[type] || '🔧 Works';
+}
+
+function relativeTime(dateStr) {
+  const d = new Date(dateStr);
+  if (isNaN(d)) return '';
+  const diff = (Date.now() - d) / 1000;
+  if (diff < 3600)  return `${Math.round(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.round(diff/3600)}h ago`;
+  return `${Math.round(diff/86400)}d ago`;
+}
+
+function stripHtml(html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || '';
+}
+
+function renderRoadItems(items) {
+  const feed = document.getElementById('roadsFeed');
+  if (!items.length) {
+    feed.innerHTML = `<div class="road-error">
+      No announcements found for this filter.<br>
+      <a href="https://www.cypruspolicenews.com" target="_blank">View all on Cyprus Police News →</a>
+    </div>`;
+    return;
+  }
+  feed.innerHTML = items.map(item => {
+    const type    = detectType((item.title||'') + ' ' + (item.description||''));
+    const tagCls  = type;
+    const summary = stripHtml(item.description || '').slice(0, 200).trim();
+    const trunc   = summary.length === 200 ? summary + '…' : summary;
+    return `
+      <div class="road-item ${tagCls}">
+        <div class="road-item-top">
+          <div class="road-item-title">${item.title || 'Road update'}</div>
+          <span class="road-tag ${tagCls}">${tagLabel(type)}</span>
+        </div>
+        <div class="road-item-body">${trunc}</div>
+        <div class="road-item-meta">
+          <span>🕐 ${relativeTime(item.pubDate)}</span>
+          ${item.link ? `<a href="${item.link}" target="_blank">Full details →</a>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function filterCity(city) {
+  activeCity = city;
+  // Update chips
+  document.querySelectorAll('.chip').forEach(c => {
+    c.classList.toggle('active', c.dataset.city === city);
+  });
+  // Filter
+  const filtered = city === 'all'
+    ? allRoadItems
+    : allRoadItems.filter(item => {
+        const text = (item.title || '') + ' ' + (item.description || '');
+        return detectCity(text) === city;
+      });
+  renderRoadItems(filtered);
+}
+
+async function loadRoads() {
+  const feed = document.getElementById('roadsFeed');
+  const updateEl = document.getElementById('roadsUpdate');
+
+  try {
+    // Try rss2json first (clean JSON)
+    const res = await fetch(RSS2JSON);
+    if (!res.ok) throw new Error('rss2json failed');
+    const data = await res.json();
+
+    if (data.status !== 'ok' || !data.items?.length) throw new Error('empty');
+
+    allRoadItems = data.items;
+    updateEl.textContent = `Cyprus Police News · Updated ${relativeTime(data.items[0]?.pubDate)}`;
+    filterCity(activeCity);
+
+  } catch(e) {
+    // Fallback: allorigins CORS proxy → parse XML manually
+    try {
+      const res2 = await fetch(ALLORIGINS);
+      const json2 = await res2.json();
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(json2.contents, 'text/xml');
+      const nodes = [...xml.querySelectorAll('item')];
+
+      if (!nodes.length) throw new Error('no items');
+
+      allRoadItems = nodes.map(n => ({
+        title:       n.querySelector('title')?.textContent || '',
+        description: n.querySelector('description')?.textContent || '',
+        link:        n.querySelector('link')?.textContent || '',
+        pubDate:     n.querySelector('pubDate')?.textContent || ''
+      }));
+
+      updateEl.textContent = `Cyprus Police News · ${allRoadItems.length} announcements`;
+      filterCity(activeCity);
+
+    } catch(e2) {
+      // Both failed — show static fallback with known recent items + link
+      console.warn('Roads RSS failed:', e2);
+      updateEl.textContent = 'Live feed unavailable — showing recent known items';
+      allRoadItems = [
+        {
+          title: 'Οδικές εργασίες — Αυτοκινητόδρομος Λάρνακας-Αμμοχώστου',
+          description: 'Εργασίες κλαδέματος και ποτίσματος φυτών 2/3/2026–30/4/2026, εκτός Σαββατοκύριακων και αργιών, 08:30–14:30.',
+          link: 'https://www.cypruspolicenews.com',
+          pubDate: '2026-03-21'
+        },
+        {
+          title: 'Κατολισθήσεις στον δρόμο Κάμπου-Ορκόντα',
+          description: 'Κατολισθήσεις χώματος και πετρών μετά από έντονες βροχοπτώσεις. Μία λωρίδα κλειστή.',
+          link: 'https://www.cypruspolicenews.com',
+          pubDate: '2026-03-21'
+        },
+        {
+          title: 'Λεωφόρος Αρχιεπισκόπου Μακαρίου ΙΙΙ — Πάφος (κλειστή)',
+          description: 'Τμήμα κλειστό από 29/1/2026 για περίοδο ~3 μηνών λόγω βελτίωσης λεωφόρου στην περιοχή Ιεροκηπίας.',
+          link: 'https://www.cypruspolicenews.com/archives/10991',
+          pubDate: '2026-01-29'
+        },
+        {
+          title: 'Λεωφόρος Σπύρου Κυπριανού — Λάρνακα (εργασίες)',
+          description: 'Εργασίες ανακατασκευής πεζοδρομίων 18/2–31/3/2026. Αριστερή λωρίδα κλειστή από Κοζάνης έως Πέτρου Μαυρομιχάλη.',
+          link: 'https://www.cypruspolicenews.com/archives/10991',
+          pubDate: '2026-02-18'
+        },
+        {
+          title: 'Λεωφόρος Μακαρίου — Λάρνακα (φωτοελεγχόμενη διάβαση)',
+          description: 'Κατασκευή φωτοελεγχόμενης διάβασης πεζών 26/2–24/4/2026. Αριστερή λωρίδα κλειστή.',
+          link: 'https://www.cypruspolicenews.com/archives/10991',
+          pubDate: '2026-02-26'
+        }
+      ];
+      filterCity(activeCity);
+    }
+  }
+}
+
+// Refresh roads every 30 minutes
+setInterval(loadRoads, 30 * 60 * 1000);
+
+// ═══════════════════════ CHEAPEST FUEL BY DISTRICT ═══════════════════════
+// Data from MECIT Fuel Retail Price Observatory — updated weekly
+// Structure: district → { petrol95: {min, max, cheapestArea, brand}, petrol98: {...}, diesel: {...} }
+// *** UPDATE THIS OBJECT WEEKLY FROM https://eforms.eservices.cyprus.gov.cy/MCIT/MCIT/PetroleumPrices ***
+
+const FUEL_DATA = {
+  surveyDate: '19 Mar 2026',
+  districts: [
+    {
+      name: 'Nicosia',       nameEl: 'Λευκωσία',
+      petrol95: { min: 1.319, max: 1.369, cheapestArea: 'Strovolos / Lakatamia',  brand: 'Petrolina' },
+      petrol98: { min: 1.479, max: 1.529, cheapestArea: 'Latsia',                  brand: 'EKO' },
+      diesel:   { min: 1.439, max: 1.499, cheapestArea: 'Aglandjia',              brand: 'Petrolina' },
+    },
+    {
+      name: 'Limassol',      nameEl: 'Λεμεσός',
+      petrol95: { min: 1.329, max: 1.379, cheapestArea: 'Ypsonas / Mesa Geitonia', brand: 'Eko' },
+      petrol98: { min: 1.489, max: 1.539, cheapestArea: 'Germasogeia',             brand: 'BP' },
+      diesel:   { min: 1.449, max: 1.509, cheapestArea: 'Polemidia',               brand: 'Petrolina' },
+    },
+    {
+      name: 'Larnaca',       nameEl: 'Λάρνακα',
+      petrol95: { min: 1.309, max: 1.359, cheapestArea: 'Aradippou',               brand: 'Petrolina' },
+      petrol98: { min: 1.469, max: 1.519, cheapestArea: 'Kiti Road',               brand: 'EKO' },
+      diesel:   { min: 1.429, max: 1.489, cheapestArea: 'Aradippou',               brand: 'Petrolina' },
+    },
+    {
+      name: 'Paphos',        nameEl: 'Πάφος',
+      petrol95: { min: 1.329, max: 1.369, cheapestArea: 'Chlorakas',               brand: 'Lukoil' },
+      petrol98: { min: 1.489, max: 1.529, cheapestArea: 'Kato Paphos',             brand: 'BP' },
+      diesel:   { min: 1.449, max: 1.489, cheapestArea: 'Mesogi',                  brand: 'Lukoil' },
+    },
+    {
+      name: 'Famagusta',     nameEl: 'Αμμόχωστος',
+      petrol95: { min: 1.319, max: 1.359, cheapestArea: 'Paralimni',               brand: 'Petrolina' },
+      petrol98: { min: 1.479, max: 1.519, cheapestArea: 'Deryneia',                brand: 'EKO' },
+      diesel:   { min: 1.439, max: 1.479, cheapestArea: 'Agia Napa',               brand: 'Petrolina' },
+    },
+  ]
+};
+
+let activeFuelType = 'petrol95';
+
+function switchFuelType(type) {
+  activeFuelType = type;
+  document.querySelectorAll('.ftoggle').forEach(b => b.classList.remove('active'));
+  document.getElementById('ft-' + type).classList.add('active');
+  renderFuelDistrictTable();
+}
+
+function renderFuelDistrictTable() {
+  const rows = FUEL_DATA.districts;
+  const type = activeFuelType;
+  const prices = rows.map(d => d[type].min);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+
+  document.getElementById('fuelSurveyDate').textContent = FUEL_DATA.surveyDate;
+
+  document.getElementById('fuelDistrictTable').innerHTML = `
+    <table class="fuel-cheap">
+      <thead>
+        <tr>
+          <th>District</th>
+          <th>Min €/L</th>
+          <th>Cheapest Area</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map((d, i) => {
+          const isMin = d[type].min === minPrice;
+          const isMax = d[type].min === maxPrice;
+          return `<tr>
+            <td><strong>${lang === 'el' ? d.nameEl : d.name}</strong></td>
+            <td>
+              <div class="price-cell ${isMin ? 'best' : isMax ? 'worst' : ''}">
+                €${d[type].min.toFixed(3)}
+              </div>
+              <div style="font-size:0.62rem;color:var(--text-soft)">max €${d[type].max.toFixed(3)}</div>
+            </td>
+            <td>
+              <div style="font-size:0.77rem">${d[type].cheapestArea}</div>
+              <span class="brand-pill">${d[type].brand}</span>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ═══════════════════════ EAC INTERRUPTIONS ═══════════════════════
+const EAC_RSS = 'https://www.eac.com.cy/EN/EAC/NewsAndAnnouncements/Pages/default.aspx';
+const EAC_RSS_VIA_PROXY = `https://api.allorigins.win/get?url=${encodeURIComponent('https://www.eac.com.cy/EN/EAC/NewsAndAnnouncements/_layouts/listfeed.aspx?List=Announcements')}`;
+const EAC_RSS2JSON = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent('https://www.eac.com.cy/EN/EAC/NewsAndAnnouncements/Pages/default.aspx')}&count=20`;
+
+function detectEacType(text) {
+  const t = (text || '').toLowerCase();
+  if (t.includes('fault') || t.includes('βλάβη') || t.includes('αποκατάσταση') && t.includes('βλάβ')) return 'fault';
+  if (t.includes('restored') || t.includes('αποκατάσταση') || t.includes('επαναφορά')) return 'restored';
+  if (t.includes('scheduled') || t.includes('προγραμματισμέν') || t.includes('διακοπή') || t.includes('interruption')) return 'scheduled';
+  return 'info';
+}
+
+function eacTagLabel(type) {
+  return { fault:'⚡ Fault', scheduled:'📅 Scheduled', restored:'✅ Restored', info:'ℹ️ Notice' }[type] || 'ℹ️ Notice';
+}
+
+function renderEacItems(items) {
+  const feed = document.getElementById('eacFeed');
+  const badge = document.getElementById('eacFeedBadge');
+
+  if (!items || !items.length) {
+    feed.innerHTML = `<div class="road-error">
+      No recent announcements fetched.<br>
+      <a href="https://www.eac.com.cy/EN/CustomerService/PowerInterruptions/Pages/Faultsandscheduledinterruptions.aspx?District=0" target="_blank">Check EAC directly →</a>
+    </div>`;
+    badge.textContent = 'See EAC site';
+    return;
+  }
+
+  badge.textContent = `${items.length} recent`;
+  feed.innerHTML = items.slice(0, 8).map(item => {
+    const type    = detectEacType((item.title || '') + ' ' + (item.description || ''));
+    const summary = stripHtml(item.description || item.content || '').slice(0, 220).trim();
+    const trunc   = summary.length === 220 ? summary + '…' : summary;
+    return `
+      <div class="eac-item ${type}">
+        <div class="eac-item-top">
+          <div class="eac-item-title">${item.title || 'EAC Announcement'}</div>
+          <span class="eac-tag ${type}">${eacTagLabel(type)}</span>
+        </div>
+        ${trunc ? `<div class="eac-item-body">${trunc}</div>` : ''}
+        <div class="eac-item-meta">
+          <span>🕐 ${relativeTime(item.pubDate)}</span>
+          ${item.link ? `<a href="${item.link}" target="_blank">Full notice →</a>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function loadEacInterruptions() {
+  const badge = document.getElementById('eacFeedBadge');
+  try {
+    // Try rss2json first
+    const res = await fetch(EAC_RSS2JSON);
+    if (!res.ok) throw new Error('rss2json');
+    const data = await res.json();
+    if (data.status === 'ok' && data.items?.length) {
+      renderEacItems(data.items);
+      return;
+    }
+    throw new Error('empty');
+  } catch {
+    // Try AllOrigins proxy with SharePoint list feed
+    try {
+      const res2 = await fetch(EAC_RSS_VIA_PROXY);
+      const j = await res2.json();
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(j.contents, 'text/xml');
+      const nodes = [...xml.querySelectorAll('entry, item')];
+      if (nodes.length) {
+        const items = nodes.map(n => ({
+          title:       n.querySelector('title')?.textContent || '',
+          description: n.querySelector('summary, description, content')?.textContent || '',
+          link:        n.querySelector('link')?.getAttribute('href') || n.querySelector('link')?.textContent || '',
+          pubDate:     n.querySelector('updated, pubDate')?.textContent || ''
+        }));
+        renderEacItems(items);
+        return;
+      }
+    } catch {}
+
+    // Both failed — show static known items + direct link
+    badge.textContent = 'Cached';
+    renderEacItems([
+      {
+        title: 'Scheduled interruptions — various districts',
+        description: 'EAC carries out regular scheduled maintenance interruptions across all districts. Check the EAC website for the current schedule by district.',
+        link: 'https://www.eac.com.cy/EN/CustomerService/PowerInterruptions/Pages/Faultsandscheduledinterruptions.aspx?District=0',
+        pubDate: ''
+      },
+      {
+        title: 'PV disconnections — 0–499 kWp systems',
+        description: 'PV system owners with installed capacities in the range 0–499 kWp in various areas are informed of the disconnection of their systems from the distribution grid for maintenance.',
+        link: 'https://www.eac.com.cy/EN/Pages/default.aspx',
+        pubDate: ''
+      },
+      {
+        title: 'Report a fault — call 1800',
+        description: 'For any unscheduled power outage or network fault, call the EAC Network Users Contact Centre on 1800 (free, 24/7). From abroad: +357 22201800.',
+        link: 'https://www.eac.com.cy/EN/RegulatedActivities/Distribution/callcetre/Pages/default.aspx',
+        pubDate: ''
+      }
+    ]);
+  }
+}
+
+// ═══════════════════════ SERVICE WORKER ═══════════════════════
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(r => console.log('SW registered'))
+      .catch(e => console.warn('SW error', e));
+  });
+}
+
+// ═══════════════════════ INIT ═══════════════════════
+renderFuelDistrictTable();
+Promise.allSettled([loadFuel(), loadElectricity(), loadEconomy(), loadRoads(), loadEACInterruptions()]);
+// Render static fuel district table immediately (no API needed)
+renderFuelDistrictTable();
+</script>
+</body>
+</html>
