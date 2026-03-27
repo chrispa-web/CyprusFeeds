@@ -1347,9 +1347,19 @@ function errCard(grid, i, label, msg) {
 
 async function eurostat(dataset, params) {
   const qs = new URLSearchParams({lang:'EN', format:'JSON', ...params});
-  const r = await fetch(`https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/${dataset}?${qs}`);
-  if (!r.ok) throw new Error(r.status);
-  return r.json();
+  const url = `https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/${dataset}?${qs}`;
+  // 8 second timeout — if Eurostat is slow the fallback data shows immediately
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const r = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  } catch(e) {
+    clearTimeout(timer);
+    throw e;
+  }
 }
 
 function parseStat(data, geo) {
@@ -1589,51 +1599,20 @@ async function loadEACInterruptions() {
 setInterval(loadEACInterruptions, 20 * 60 * 1000);
 
 // ═══════════════════════ ELECTRICITY ═══════════════════════
-async function loadElectricity() {
+function renderElecFallback(note='Eurostat H2 2024') {
   const grid = document.getElementById('elecStats');
-  try {
-    const [cyData, euData] = await Promise.all([
-      eurostat('nrg_pc_204',{geo:'CY',unit:'KWH',nrg_cons:'MWH2500-4999',tax:'I_TAX',currency:'EUR'}),
-      eurostat('nrg_pc_204',{geo:'EU27_2020',unit:'KWH',nrg_cons:'MWH2500-4999',tax:'I_TAX',currency:'EUR'})
-    ]);
-    const cySeries = parseStat(cyData,'CY');
-    const euSeries = parseStat(euData,'EU27_2020');
-    const cur  = cySeries[cySeries.length-1];
-    const prev = cySeries[cySeries.length-2];
-    const euL  = euSeries[euSeries.length-1];
-    const diff = ((cur.value-euL.value)/euL.value*100);
-    const yoy  = prev ? ((cur.value-prev.value)/prev.value*100) : null;
-
-    setCard(grid,0,{label:'Rate/kWh', val:cur.value.toFixed(4), unit:'€', foot:`Eurostat · ${cur.time}`});
-    setCard(grid,1,{label:'vs EU Avg', val:diff.toFixed(1), unit:'%', delta:diff, foot:`EU avg €${euL.value.toFixed(4)}`, accentClass:'sea'});
-    setCard(grid,2,{label:'Monthly Bill', val:`€${(cur.value*400).toFixed(0)}`, unit:'', foot:'400 kWh/month est.', accentClass:'green'});
-    if(yoy!==null)
-      setCard(grid,3,{label:'YoY Change', val:yoy.toFixed(1), unit:'%', delta:yoy, foot:`${prev.time} → ${cur.time}`, accentClass:'amber'});
-    else
-      setCard(grid,3,{label:'VAT Rate', val:'9', unit:'%', foot:'Reduced rate extended', accentClass:'amber'});
-
-    document.getElementById('elecUpdate').textContent = `Eurostat · ${cur.time}`;
-
-    // History chart
-    const last8 = cySeries.slice(-8);
-    const euLast8 = euSeries.slice(-8);
+  const periods=['H1 2022','H2 2022','H1 2023','H2 2023','H1 2024','H2 2024'];
+  const cyV=[0.272,0.310,0.338,0.342,0.326,0.320];
+  const euV=[0.236,0.280,0.298,0.288,0.294,0.295];
+  setCard(grid,0,{label:'Rate/kWh',    val:'0.3200', unit:'€',   foot:note});
+  setCard(grid,1,{label:'vs EU Avg',   val:'+8.5',   unit:'%',   delta:8.5,  foot:'EU avg ~€0.295', accentClass:'sea'});
+  setCard(grid,2,{label:'Monthly Bill',val:'€128',   unit:'',    foot:'400 kWh/month est.', accentClass:'green'});
+  setCard(grid,3,{label:'YoY Change',  val:'-6.5',   unit:'%',   delta:-6.5, foot:'H1→H2 2024', accentClass:'amber'});
+  document.getElementById('elecUpdate').textContent = note;
+  // Only draw chart if not already drawn
+  if (!window._elecChartDrawn) {
+    window._elecChartDrawn = true;
     const ctx = document.getElementById('elecChart').getContext('2d');
-    new Chart(ctx,{type:'bar',data:{labels:last8.map(d=>d.time.replace('-H','H')),datasets:[
-      {label:'Cyprus',data:last8.map(d=>d.value),backgroundColor:CLAY+'cc',borderColor:CLAY,borderWidth:1,borderRadius:4},
-      {label:'EU27', data:euLast8.map(d=>d.value),backgroundColor:SEA+'88',borderColor:SEA,borderWidth:1,borderRadius:4}
-    ]},options:{...CHART_OPT,scales:{...CHART_OPT.scales,y:{...CHART_OPT.scales.y,ticks:{...CHART_OPT.scales.y.ticks,callback:v=>'€'+v}}}}});
-
-  } catch(e) {
-    console.warn(e);
-    setCard(grid,0,{label:'Rate/kWh', val:'0.3200', unit:'€', foot:'Eurostat H2 2024'});
-    setCard(grid,1,{label:'vs EU Avg', val:'+8.5', unit:'%', delta:8.5, foot:'EU avg ~€0.295', accentClass:'sea'});
-    setCard(grid,2,{label:'Monthly Bill', val:'€128', unit:'', foot:'400 kWh/month est.', accentClass:'green'});
-    setCard(grid,3,{label:'YoY Change', val:'-6.5', unit:'%', delta:-6.5, foot:'2024 H2 vs 2023 H2', accentClass:'amber'});
-    document.getElementById('elecUpdate').textContent = 'Cached data';
-    const periods=['H1 2022','H2 2022','H1 2023','H2 2023','H1 2024','H2 2024'];
-    const cyV=[0.272,0.310,0.338,0.342,0.326,0.320];
-    const euV=[0.236,0.280,0.298,0.288,0.294,0.295];
-    const ctx=document.getElementById('elecChart').getContext('2d');
     new Chart(ctx,{type:'bar',data:{labels:periods,datasets:[
       {label:'Cyprus',data:cyV,backgroundColor:CLAY+'cc',borderColor:CLAY,borderWidth:1,borderRadius:4},
       {label:'EU27', data:euV,backgroundColor:SEA+'88',borderColor:SEA,borderWidth:1,borderRadius:4}
@@ -1641,9 +1620,77 @@ async function loadElectricity() {
   }
 }
 
+async function loadElectricity() {
+  // Render static data immediately — never stays on "Loading…"
+  renderElecFallback('Cached · updating…');
+  try {
+    const [cyData, euData] = await Promise.all([
+      eurostat('nrg_pc_204',{geo:'CY',unit:'KWH',nrg_cons:'MWH2500-4999',tax:'I_TAX',currency:'EUR'}),
+      eurostat('nrg_pc_204',{geo:'EU27_2020',unit:'KWH',nrg_cons:'MWH2500-4999',tax:'I_TAX',currency:'EUR'})
+    ]);
+    const grid = document.getElementById('elecStats');
+    const cySeries = parseStat(cyData,'CY');
+    const euSeries = parseStat(euData,'EU27_2020');
+    const cur  = cySeries[cySeries.length-1];
+    const prev = cySeries[cySeries.length-2];
+    const euL  = euSeries[euSeries.length-1];
+    if (!cur?.value) return;
+    const diff = ((cur.value-euL.value)/euL.value*100);
+    const yoy  = prev ? ((cur.value-prev.value)/prev.value*100) : null;
+    setCard(grid,0,{label:'Rate/kWh',    val:cur.value.toFixed(4), unit:'€', foot:`Eurostat · ${cur.time}`});
+    setCard(grid,1,{label:'vs EU Avg',   val:diff.toFixed(1), unit:'%', delta:diff, foot:`EU avg €${euL.value.toFixed(4)}`, accentClass:'sea'});
+    setCard(grid,2,{label:'Monthly Bill',val:`€${(cur.value*400).toFixed(0)}`, unit:'', foot:'400 kWh/month est.', accentClass:'green'});
+    if(yoy!==null)
+      setCard(grid,3,{label:'YoY Change', val:yoy.toFixed(1), unit:'%', delta:yoy, foot:`${prev.time} → ${cur.time}`, accentClass:'amber'});
+    else
+      setCard(grid,3,{label:'VAT Rate', val:'9', unit:'%', foot:'Reduced rate extended', accentClass:'amber'});
+    document.getElementById('elecUpdate').textContent = `Eurostat · ${cur.time} · Live`;
+    // Redraw chart with live data
+    const last8   = cySeries.slice(-8);
+    const euLast8 = euSeries.slice(-8);
+    if (window._elecChartDrawn && window._elecChart) { window._elecChart.destroy(); }
+    const ctx = document.getElementById('elecChart').getContext('2d');
+    window._elecChart = new Chart(ctx,{type:'bar',data:{labels:last8.map(d=>d.time.replace('-H','H')),datasets:[
+      {label:'Cyprus',data:last8.map(d=>d.value),backgroundColor:CLAY+'cc',borderColor:CLAY,borderWidth:1,borderRadius:4},
+      {label:'EU27', data:euLast8.map(d=>d.value),backgroundColor:SEA+'88',borderColor:SEA,borderWidth:1,borderRadius:4}
+    ]},options:{...CHART_OPT,scales:{...CHART_OPT.scales,y:{...CHART_OPT.scales.y,ticks:{...CHART_OPT.scales.y.ticks,callback:v=>'€'+v}}}}});
+  } catch(e) {
+    console.warn('Elec API failed, using cached data:', e.message);
+    renderElecFallback('Cached data · Eurostat H2 2024');
+  }
+}
+
 // ═══════════════════════ ECONOMY ═══════════════════════
-async function loadEconomy() {
+function renderEconFallback(note='Cached data') {
   const grid = document.getElementById('econStats');
+  const months=['Mar 24','Jun 24','Sep 24','Dec 24','Mar 25','Jun 25','Sep 25','Dec 25','Jan 26'];
+  const cyIv=[2.1,1.8,1.5,1.1,0.9,0.7,0.6,0.6,0.5];
+  const euIv=[2.6,2.5,2.1,2.4,2.3,2.2,2.0,2.3,2.5];
+  const cyUv=[7.5,7.2,7.0,6.9,7.0,6.9,6.8,6.8,6.8];
+  const euUv=[5.9,5.8,5.8,5.7,5.9,5.8,5.8,5.9,5.9];
+  setCard(grid,0,{label:'Inflation (HICP)', val:'0.5',  unit:'%',  delta:0.5,  deltaLabel:'% YoY', foot:'CYSTAT Jan 2026'});
+  setCard(grid,1,{label:'vs EU Inflation',  val:'-2.0', unit:'pp', delta:-2.0, foot:'EU avg ~2.5%', accentClass:'sea'});
+  setCard(grid,2,{label:'Unemployment',     val:'6.8',  unit:'%',  delta:-0.3, foot:'SA · late 2025', accentClass:'green'});
+  setCard(grid,3,{label:'Youth Unemploy.',  val:'18.2', unit:'%',  delta:-1.0, foot:'Age <25', accentClass:'amber'});
+  document.getElementById('econUpdate').textContent = note;
+  if (!window._econChartsDrawn) {
+    window._econChartsDrawn = true;
+    const iCtx = document.getElementById('inflChart').getContext('2d');
+    window._inflChart = new Chart(iCtx,{type:'line',data:{labels:months,datasets:[
+      {label:'Cyprus',data:cyIv,borderColor:CLAY,backgroundColor:CLAY+'20',tension:0.35,borderWidth:2.5,pointRadius:3,fill:true},
+      {label:'EU27', data:euIv,borderColor:SEA,backgroundColor:'transparent',tension:0.35,borderWidth:1.5,borderDash:[4,3],pointRadius:0}
+    ]},options:{...CHART_OPT,scales:{...CHART_OPT.scales,y:{...CHART_OPT.scales.y,ticks:{...CHART_OPT.scales.y.ticks,callback:v=>v+'%'}}}}});
+    const uCtx = document.getElementById('unempChart').getContext('2d');
+    window._unempChart = new Chart(uCtx,{type:'bar',data:{labels:months,datasets:[
+      {label:'Cyprus',data:cyUv,backgroundColor:CLAY+'cc',borderColor:CLAY,borderWidth:1,borderRadius:3},
+      {label:'EU27', data:euUv,backgroundColor:SEA+'88',borderColor:SEA,borderWidth:1,borderRadius:3}
+    ]},options:{...CHART_OPT,scales:{...CHART_OPT.scales,y:{...CHART_OPT.scales.y,ticks:{...CHART_OPT.scales.y.ticks,callback:v=>v+'%'}}}}});
+  }
+}
+
+async function loadEconomy() {
+  // Render static data immediately — never stays on "Loading…"
+  renderEconFallback('Cached · updating…');
   try {
     const [cyInfl,euInfl,cyUnemp,euUnemp,cyYouth] = await Promise.all([
       eurostat('prc_hicp_manr',{geo:'CY',coicop:'CP00',unit:'RCH_A'}),
@@ -1652,62 +1699,39 @@ async function loadEconomy() {
       eurostat('une_rt_m',{geo:'EU27_2020',age:'TOTAL',sex:'T',s_adj:'SA',unit:'PC_ACT'}),
       eurostat('une_rt_m',{geo:'CY',age:'Y_LT25',sex:'T',s_adj:'SA',unit:'PC_ACT'})
     ]);
-
+    const grid = document.getElementById('econStats');
     const cyI  = parseStat(cyInfl,'CY').slice(-18);
     const euI  = parseStat(euInfl,'EU27_2020').slice(-18);
     const cyU  = parseStat(cyUnemp,'CY').slice(-18);
     const euU  = parseStat(euUnemp,'EU27_2020').slice(-18);
     const cyYU = parseStat(cyYouth,'CY');
-
     const ciL=cyI[cyI.length-1], euIL=euI[euI.length-1];
     const cuL=cyU[cyU.length-1], euUL=euU[euU.length-1];
     const cyYL=cyYU[cyYU.length-1];
-
+    if (!ciL?.value) return;
     setCard(grid,0,{label:'Inflation (HICP)', val:ciL.value.toFixed(1), unit:'%', delta:ciL.value, deltaLabel:'% YoY', foot:`Eurostat · ${ciL.time}`});
-    setCard(grid,1,{label:'vs EU Inflation', val:(ciL.value-euIL.value).toFixed(2), unit:'pp', delta:ciL.value-euIL.value, foot:`EU avg ${euIL.value.toFixed(1)}%`, accentClass:'sea'});
-    setCard(grid,2,{label:'Unemployment', val:cuL.value.toFixed(1), unit:'%', delta:cuL.value-euUL.value, foot:`EU avg ${euUL.value.toFixed(1)}%`, accentClass:'green'});
-    setCard(grid,3,{label:'Youth Unemploy.', val:cyYL.value.toFixed(1), unit:'%', delta:cyYL.value, foot:`Age <25 · ${cyYL.time}`, accentClass:'amber'});
-
-    document.getElementById('econUpdate').textContent = `Eurostat · ${ciL.time}`;
-
-    const inflCtx = document.getElementById('inflChart').getContext('2d');
-    new Chart(inflCtx,{type:'line',data:{labels:cyI.map(d=>fmtTime(d.time)),datasets:[
+    setCard(grid,1,{label:'vs EU Inflation',  val:(ciL.value-euIL.value).toFixed(2), unit:'pp', delta:ciL.value-euIL.value, foot:`EU avg ${euIL.value.toFixed(1)}%`, accentClass:'sea'});
+    setCard(grid,2,{label:'Unemployment',     val:cuL.value.toFixed(1), unit:'%', delta:cuL.value-euUL.value, foot:`EU avg ${euUL.value.toFixed(1)}%`, accentClass:'green'});
+    setCard(grid,3,{label:'Youth Unemploy.',  val:cyYL.value.toFixed(1), unit:'%', delta:cyYL.value, foot:`Age <25 · ${cyYL.time}`, accentClass:'amber'});
+    document.getElementById('econUpdate').textContent = `Eurostat · ${ciL.time} · Live`;
+    // Redraw charts with live data
+    if (window._inflChart)  window._inflChart.destroy();
+    if (window._unempChart) window._unempChart.destroy();
+    const iCtx = document.getElementById('inflChart').getContext('2d');
+    window._inflChart = new Chart(iCtx,{type:'line',data:{labels:cyI.map(d=>fmtTime(d.time)),datasets:[
       {label:'Cyprus',data:cyI.map(d=>d.value),borderColor:CLAY,backgroundColor:CLAY+'20',tension:0.35,borderWidth:2.5,pointRadius:2,fill:true},
       {label:'EU27', data:euI.map(d=>d.value),borderColor:SEA,backgroundColor:'transparent',tension:0.35,borderWidth:1.5,borderDash:[4,3],pointRadius:0}
     ]},options:{...CHART_OPT,scales:{...CHART_OPT.scales,y:{...CHART_OPT.scales.y,ticks:{...CHART_OPT.scales.y.ticks,callback:v=>v+'%'}}}}});
-
-    const unCtx = document.getElementById('unempChart').getContext('2d');
-    new Chart(unCtx,{type:'bar',data:{labels:cyU.map(d=>fmtTime(d.time)),datasets:[
+    const uCtx = document.getElementById('unempChart').getContext('2d');
+    window._unempChart = new Chart(uCtx,{type:'bar',data:{labels:cyU.map(d=>fmtTime(d.time)),datasets:[
       {label:'Cyprus',data:cyU.map(d=>d.value),backgroundColor:CLAY+'cc',borderColor:CLAY,borderWidth:1,borderRadius:3},
       {label:'EU27', data:euU.map(d=>d.value),backgroundColor:SEA+'88',borderColor:SEA,borderWidth:1,borderRadius:3}
     ]},options:{...CHART_OPT,scales:{...CHART_OPT.scales,y:{...CHART_OPT.scales.y,ticks:{...CHART_OPT.scales.y.ticks,callback:v=>v+'%'}}}}});
-
   } catch(e) {
-    console.warn(e);
-    setCard(grid,0,{label:'Inflation (HICP)', val:'0.5', unit:'%', delta:0.5, foot:'CYSTAT Jan 2026'});
-    setCard(grid,1,{label:'vs EU Inflation', val:'-2.0', unit:'pp', delta:-2.0, foot:'EU avg ~2.5%', accentClass:'sea'});
-    setCard(grid,2,{label:'Unemployment', val:'6.8', unit:'%', delta:-0.3, foot:'SA · late 2025', accentClass:'green'});
-    setCard(grid,3,{label:'Youth Unemploy.', val:'18.2', unit:'%', delta:-1.0, foot:'Age <25', accentClass:'amber'});
-    document.getElementById('econUpdate').textContent = 'Cached data';
-
-    const months=['Mar 24','Jun 24','Sep 24','Dec 24','Mar 25','Jun 25','Sep 25','Dec 25','Jan 26'];
-    const cyIv=[2.1,1.8,1.5,1.1,0.9,0.7,0.6,0.6,0.5];
-    const euIv=[2.6,2.5,2.1,2.4,2.3,2.2,2.0,2.3,2.5];
-    const cyUv=[7.5,7.2,7.0,6.9,7.0,6.9,6.8,6.8,6.8];
-    const euUv=[5.9,5.8,5.8,5.7,5.9,5.8,5.8,5.9,5.9];
-
-    const iCtx=document.getElementById('inflChart').getContext('2d');
-    new Chart(iCtx,{type:'line',data:{labels:months,datasets:[
-      {label:'Cyprus',data:cyIv,borderColor:CLAY,backgroundColor:CLAY+'20',tension:0.35,borderWidth:2.5,pointRadius:3,fill:true},
-      {label:'EU27', data:euIv,borderColor:SEA,backgroundColor:'transparent',tension:0.35,borderWidth:1.5,borderDash:[4,3],pointRadius:0}
-    ]},options:{...CHART_OPT,scales:{...CHART_OPT.scales,y:{...CHART_OPT.scales.y,ticks:{...CHART_OPT.scales.y.ticks,callback:v=>v+'%'}}}}});
-
-    const uCtx=document.getElementById('unempChart').getContext('2d');
-    new Chart(uCtx,{type:'bar',data:{labels:months,datasets:[
-      {label:'Cyprus',data:cyUv,backgroundColor:CLAY+'cc',borderColor:CLAY,borderWidth:1,borderRadius:3},
-      {label:'EU27', data:euUv,backgroundColor:SEA+'88',borderColor:SEA,borderWidth:1,borderRadius:3}
-    ]},options:{...CHART_OPT,scales:{...CHART_OPT.scales,y:{...CHART_OPT.scales.y,ticks:{...CHART_OPT.scales.y.ticks,callback:v=>v+'%'}}}}});
+    console.warn('Economy API failed, using cached data:', e.message);
+    renderEconFallback('Cached data · Jan 2026');
   }
+}
 }
 
 // ═══════════════════════ ROADS ═══════════════════════
@@ -1933,6 +1957,7 @@ const FUEL_DATA = {
   ]
 };
 
+let activeFuelType = 'petrol95';
 
 function switchFuelType(type) {
   activeFuelType = type;
@@ -1943,7 +1968,7 @@ function switchFuelType(type) {
 
 function renderFuelDistrictTable() {
   const rows = FUEL_DATA.districts;
- // const type = activeFuelType;
+  const type = activeFuelType;
   const prices = rows.map(d => d[type].min);
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
@@ -1982,7 +2007,7 @@ function renderFuelDistrictTable() {
 }
 
 // ═══════════════════════ EAC INTERRUPTIONS ═══════════════════════
-//const EAC_RSS = 'https://www.eac.com.cy/EN/EAC/NewsAndAnnouncements/Pages/default.aspx';
+const EAC_RSS = 'https://www.eac.com.cy/EN/EAC/NewsAndAnnouncements/Pages/default.aspx';
 const EAC_RSS_VIA_PROXY = `https://api.allorigins.win/get?url=${encodeURIComponent('https://www.eac.com.cy/EN/EAC/NewsAndAnnouncements/_layouts/listfeed.aspx?List=Announcements')}`;
 const EAC_RSS2JSON = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent('https://www.eac.com.cy/EN/EAC/NewsAndAnnouncements/Pages/default.aspx')}&count=20`;
 
@@ -2099,14 +2124,9 @@ if ('serviceWorker' in navigator) {
 
 // ═══════════════════════ INIT ═══════════════════════
 renderFuelDistrictTable();
-
-Promise.allSettled([
-  loadFuel(),
-  loadElectricity(),
-  loadEconomy(),
-  loadRoads(),
-  loadEACInterruptions()
-]);
+Promise.allSettled([loadFuel(), loadElectricity(), loadEconomy(), loadRoads(), loadEACInterruptions()]);
+// Render static fuel district table immediately (no API needed)
+renderFuelDistrictTable();
 </script>
 </body>
 </html>
