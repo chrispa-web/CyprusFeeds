@@ -561,9 +561,66 @@ const EU_RANKING = [
   { name: 'Netherlands',  price: 2.100 },
 ];
 
-// ── Fuel: cheapest stations by district ─────────────────────
-// Update weekly from: https://eforms.eservices.cyprus.gov.cy/MCIT/MCIT/PetroleumPrices
-// Data fetched: 28 Mar 2026 (Euro 95 = FuelType 1, Diesel = FuelType 5)
+// ── MECIT live fetch config ──────────────────────────────────
+// FuelType IDs: 1 = Euro 95, 2 = Euro 98, 5 = Diesel
+// Area→district mapping for parsing MECIT HTML responses
+const MECIT_URL      = 'https://eforms.eservices.cyprus.gov.cy/MCIT/MCIT/PetroleumPrices';
+const MECIT_FUEL_IDS = { petrol95: '1', petrol98: '2', diesel: '5' };
+
+// Area names → district key (built from full MECIT dataset)
+const AREA_TO_DISTRICT = {
+  // Nicosia
+  'Λευκωσία':'nicosia','Στρόβολος':'nicosia','Λακατάμεια':'nicosia','Λατσιά':'nicosia',
+  'Αγλαντζιά':'nicosia','Έγκωμη':'nicosia','Άγιος Δομέτιος':'nicosia','Ακρόπολη':'nicosia',
+  'Παλλουριώτισσα':'nicosia','Καϊμακλί':'nicosia','Δασούπολη':'nicosia','Τσέρι':'nicosia',
+  'Δευτερά':'nicosia','Λυθροδόντας':'nicosia','Ακάκι':'nicosia','Κοκκινοτριμιθιά':'nicosia',
+  'Αστρομερίτης ':'nicosia','Περιστερώνα':'nicosia','Αρεδιού':'nicosia','Γέρι':'nicosia',
+  'Δάλι':'nicosia','Μοσφιλωτή':'nicosia','Λύμπια':'nicosia','Πέρα Ορεινής':'nicosia',
+  'Παλιομέτοχο':'nicosia','Πέρα Χωριό Νήσου':'nicosia','Αγία Βαρβάρα':'nicosia',
+  'Κλήρου':'nicosia','Αλάμπρα':'nicosia',
+  // Limassol
+  'Λεμεσός':'limassol','Άγιος Αθανάσιος':'limassol','Μέσα Γειτονιά':'limassol',
+  'Γερμασόγεια':'limassol','Ύψωνας':'limassol','Κάτω Πολεμίδια':'limassol',
+  'Τραχώνι':'limassol','Επισκοπή':'limassol','Παρεκκλησιά':'limassol','Κολόσσι':'limassol',
+  'Μονή':'limassol','Πισσούρι':'limassol','Κυπερούντα':'limassol','Παραμύθα':'limassol',
+  'Σαϊτάς':'limassol','Τριμίκλινη':'limassol','Πάνω Πλάτρες':'limassol',
+  'Πάνω Κυβίδες':'limassol','Πεδουλάς':'limassol','Χοιροκιτία':'limassol',
+  'Αλεθρικό':'limassol','Πεντάκωμο':'limassol','Μαζωτός':'limassol','Ορμήδεια':'limassol',
+  'Δρομολαξιά':'limassol','Βάση Επισκοπής':'limassol','Κοφίνου':'limassol',
+  'Καλαβασός':'limassol','Παλώδια':'limassol','Πελένδρι':'limassol',
+  'Τουριστική Περ. Αγίου Τύχωνα':'limassol',
+  // Larnaca
+  'Λάρνακα':'larnaca','Αραδίππου':'larnaca','Κόρνος':'larnaca','Αβδελλερό':'larnaca',
+  'Ορόκλινη':'larnaca','Κίτι':'larnaca','Λειβάδια':'larnaca','Δεκέλεια':'larnaca',
+  'Καλό Χωριό Λάρνακας':'larnaca','Σκαρίνου':'larnaca','Πύλα':'larnaca',
+  'Περιφερειακός Δρόμος Ξυλοτύμπου':'larnaca','Λεύκαρα':'larnaca','Αγγλισίδες':'larnaca',
+  'Δρόμος Λάρνακας - Δεκέλειας':'larnaca',
+  // Paphos
+  'Πάφος':'paphos','Χλώρακα':'paphos','Γεροσκήπου':'paphos','Έμπα':'paphos',
+  'Πέγεια':'paphos','Μεσόγη':'paphos','Κονιά':'paphos','Πόλης Χρυσοχούς':'paphos',
+  'Αργάκα':'paphos','Νικόκλεια':'paphos','Τρεμιθούσα':'paphos','Στρουμπί':'paphos',
+  'Τίμη':'paphos','Τάφοι των Βασιλέων':'paphos','Μανδριά':'paphos','Δρούσια':'paphos',
+  'Γουδί':'paphos','Αρόδες':'paphos','Κάτω Πύργος':'paphos',
+  // Famagusta
+  'Παραλίμνι':'famagusta','Πρωταράς':'famagusta','Αγία Νάπα':'famagusta',
+  'Σωτήρα':'famagusta','Δερύνεια':'famagusta','Αυγόρου':'famagusta',
+  'Ξυλοφάγου':'famagusta','Λιοπέτρι':'famagusta','Φρέναρος':'famagusta',
+  'Βρυσούλες':'famagusta','Αθιένου':'famagusta','Δασάκι της Άχνας':'famagusta',
+};
+
+// District display metadata (keyed by district key)
+const DISTRICT_META = {
+  nicosia:   { en: 'Nicosia',   el: 'Λευκωσία',   icon: '🏙️' },
+  limassol:  { en: 'Limassol',  el: 'Λεμεσός',    icon: '🌊' },
+  larnaca:   { en: 'Larnaca',   el: 'Λάρνακα',    icon: '✈️' },
+  paphos:    { en: 'Paphos',    el: 'Πάφος',      icon: '🏺' },
+  famagusta: { en: 'Famagusta', el: 'Αμμόχωστος', icon: '🏖️' },
+};
+
+// ── Fuel: cheapest stations by district — FALLBACK ───────────
+// Used immediately on load while live fetch is in progress,
+// and as a safety net if all fetch strategies fail.
+// Last verified: 28 Mar 2026
 const DISTRICT_DATA = {
   updatedOn:  '28 Mar 2026',
   islandAvg:   1.551,
@@ -696,6 +753,11 @@ let activeCity     = 'all';
 let allRoadItems   = [];
 let chartInstance  = null;
 
+// Live price cache — keyed by fuel type ('petrol95' | 'petrol98' | 'diesel')
+// Each entry: { islandAvg, islandMin, islandMax, districts: [...], fetchedAt: Date }
+// Null means not yet fetched.
+const mecitCache = { petrol95: null, petrol98: null, diesel: null };
+
 
 /* ═══════════════════════════════════════════════════════════════
    ██████  UTILITIES
@@ -759,8 +821,121 @@ function toggleLang() {
 
 
 /* ═══════════════════════════════════════════════════════════════
-   ██████  FUEL — STAT CARDS
+   ██████  FUEL — LIVE MECIT PRICE FETCH
+   Three-strategy chain: Claude API → corsproxy.io → static fallback
+   Results are cached per fuel type for the browser session.
 ═══════════════════════════════════════════════════════════════ */
+
+// Parse MECIT HTML → grouped district data
+function parseMecitHtml(html, fuelTypeKey) {
+  const doc      = new DOMParser().parseFromString(html, 'text/html');
+  const rows     = [...doc.querySelectorAll('#petroleumPriceDetailsFootable tbody tr')];
+  const labels   = [...doc.querySelectorAll('.displayLabelValue')];
+  const islandAvg = labels[0] ? parseFloat(labels[0].textContent.replace(',', '.')) : null;
+  const islandMin = labels[1] ? parseFloat(labels[1].textContent.replace(',', '.')) : null;
+  const islandMax = labels[2] ? parseFloat(labels[2].textContent.replace(',', '.')) : null;
+
+  // Collect all online stations
+  const stations = [];
+  for (const row of rows) {
+    if (row.querySelector('.isOffLine')) continue;
+    const cells = row.querySelectorAll('td');
+    if (cells.length < 5) continue;
+    const price = parseFloat(cells[4].textContent.trim().replace(',', '.'));
+    if (isNaN(price)) continue;
+    stations.push({
+      brand: cells[0].textContent.trim(),
+      area:  cells[3].textContent.trim(),
+      addr:  cells[2].textContent.trim().split('\n')[0].trim(),
+      price,
+    });
+  }
+
+  // Group by district
+  const byDistrict = {};
+  for (const s of stations) {
+    const key = AREA_TO_DISTRICT[s.area];
+    if (!key) continue;
+    if (!byDistrict[key]) byDistrict[key] = [];
+    byDistrict[key].push(s);
+  }
+
+  // Build district summaries (sorted cheapest first)
+  const districts = Object.entries(DISTRICT_META).map(([key, meta]) => {
+    const list = (byDistrict[key] || []).sort((a, b) => a.price - b.price);
+    if (!list.length) return null;
+    const prices = list.map(s => s.price);
+    const avg    = prices.reduce((a, b) => a + b, 0) / prices.length;
+    return {
+      key,
+      en: meta.en, el: meta.el, icon: meta.icon,
+      stations: list.length,
+      [fuelTypeKey]: {
+        min: prices[0],
+        avg: Math.round(avg * 1000) / 1000,
+        max: prices[prices.length - 1],
+        cheapest: list.slice(0, 2).map(s => ({ price: s.price, brand: s.brand, area: s.area, addr: s.addr })),
+      },
+    };
+  }).filter(Boolean);
+
+  return { islandAvg, islandMin, islandMax, districts };
+}
+
+async function loadMecitPrices(fuelType) {
+  if (mecitCache[fuelType]) return; // already fetched this session
+
+  const fuelId   = MECIT_FUEL_IDS[fuelType];
+  const formBody = `FuelType=${fuelId}&District=0&Areas=`;
+
+  // ── Strategy 1: Claude API (server-side, no CORS) ──────────
+  try {
+    const res  = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 16,
+        system: 'You are an HTTP proxy. Fetch the URL via POST with the given body and return the raw HTML response only, with no commentary.',
+        messages: [{ role: 'user', content: `POST ${MECIT_URL}\nContent-Type: application/x-www-form-urlencoded\n\n${formBody}` }],
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      const html = json.content?.[0]?.text || '';
+      if (html.includes('petroleumPriceDetailsFootable')) {
+        mecitCache[fuelType] = { ...parseMecitHtml(html, fuelType), fetchedAt: new Date() };
+        renderDistrictTable();
+        return;
+      }
+    }
+  } catch { /* try next */ }
+
+  // ── Strategy 2: corsproxy.io (client-side POST) ─────────────
+  try {
+    const res = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(MECIT_URL)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formBody,
+      signal: AbortSignal.timeout(12000),
+    });
+    if (res.ok) {
+      const html = await res.text();
+      if (html.includes('petroleumPriceDetailsFootable')) {
+        mecitCache[fuelType] = { ...parseMecitHtml(html, fuelType), fetchedAt: new Date() };
+        renderDistrictTable();
+        return;
+      }
+    }
+  } catch { /* try next */ }
+
+  // ── Strategy 3: static fallback already shown — nothing to do ─
+  // renderDistrictTable already rendered the fallback while loading.
+  console.warn(`MECIT fetch failed for ${fuelType} — showing embedded fallback`);
+}
+
+
 function renderFuelStats() {
   const { petrol95, diesel, euAvgPetrol, euRank, wageMonthly, tankLitres } = FUEL_SUMMARY;
   const diffPct  = ((petrol95 - euAvgPetrol) / euAvgPetrol * 100).toFixed(1);
@@ -881,31 +1056,65 @@ function switchFuelType(type) {
   activeFuelType = type;
   document.querySelectorAll('.ftype-btn').forEach(b => b.classList.remove('active'));
   $(`ft-${type}`).classList.add('active');
-  renderDistrictTable();
+  renderDistrictTable();           // renders immediately (fallback or cache)
+  loadMecitPrices(type);           // fires fetch if not yet cached; re-renders on success
 }
 
 function renderDistrictTable() {
-  const { districts, islandAvg, islandMin, islandMax } = DISTRICT_DATA;
-  const sorted   = [...districts].sort((a, b) => a[activeFuelType].min - b[activeFuelType].min);
-  const prices   = sorted.map(d => d[activeFuelType].min);
+  const live     = mecitCache[activeFuelType];
+  const isLive   = live !== null;
+
+  // Data source: live cache if available, else embedded fallback
+  // For live data: districts come keyed by fuelType inside each district object
+  // For fallback: districts have { petrol95, petrol98, diesel } per entry
+  let districts, islandAvg, islandMin, islandMax;
+
+  if (isLive) {
+    districts  = live.districts;
+    islandAvg  = live.islandAvg;
+    islandMin  = live.islandMin;
+    islandMax  = live.islandMax;
+    const t = live.fetchedAt;
+    const timeStr = t.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    $('districtDateSub').textContent = `Today · ${timeStr}`;
+    $('districtBadge').textContent   = '🟢 Live';
+    $('districtBadge').style.background = '#e8f5e9';
+    $('districtBadge').style.color      = 'var(--green)';
+  } else {
+    // Fallback: build same shape from DISTRICT_DATA
+    districts  = DISTRICT_DATA.districts.map(d => ({
+      ...d,
+      [activeFuelType]: d[activeFuelType], // already has petrol95/petrol98/diesel
+    }));
+    islandAvg  = DISTRICT_DATA.islandAvg;
+    islandMin  = DISTRICT_DATA.islandMin;
+    islandMax  = DISTRICT_DATA.islandMax;
+    $('districtDateSub').textContent = `Last verified: ${DISTRICT_DATA.updatedOn}`;
+    $('districtBadge').textContent   = '⏳ Loading…';
+    $('districtBadge').style.background = '';
+    $('districtBadge').style.color      = '';
+  }
+
+  const sorted    = [...districts].sort((a, b) => a[activeFuelType].min - b[activeFuelType].min);
+  const prices    = sorted.map(d => d[activeFuelType].min);
   const globalMin = Math.min(...prices);
   const globalMax = Math.max(...prices);
 
   setHtml('districtTable', `
     <div style="display:flex;gap:1rem;padding:.6rem .9rem;background:var(--sand);font-size:.75rem;border-bottom:1px solid var(--border);flex-wrap:wrap">
-      <span>🇨🇾 Avg <strong>€${islandAvg.toFixed(3)}</strong></span>
-      <span>🏆 Min <strong style="color:var(--green)">€${islandMin.toFixed(3)}</strong></span>
-      <span>📈 Max <strong style="color:var(--red)">€${islandMax.toFixed(3)}</strong></span>
+      ${islandAvg ? `<span>🇨🇾 Avg <strong>€${islandAvg.toFixed(3)}</strong></span>` : ''}
+      ${islandMin ? `<span>🏆 Min <strong style="color:var(--green)">€${islandMin.toFixed(3)}</strong></span>` : ''}
+      ${islandMax ? `<span>📈 Max <strong style="color:var(--red)">€${islandMax.toFixed(3)}</strong></span>` : ''}
     </div>
     <table class="tbl">
       <thead><tr>
-        <th data-en="District" data-el="Επαρχία">${lang === 'el' ? 'Επαρχία' : 'District'}</th>
-        <th data-en="Min €/L"  data-el="Ελάχιστη">${lang === 'el' ? 'Ελάχιστη' : 'Min €/L'}</th>
-        <th data-en="Cheapest Station" data-el="Φθηνότερο Πρατήριο">${lang === 'el' ? 'Φθηνότερο Πρατήριο' : 'Cheapest Station'}</th>
+        <th>${lang === 'el' ? 'Επαρχία' : 'District'}</th>
+        <th>${lang === 'el' ? 'Ελάχιστη' : 'Min €/L'}</th>
+        <th>${lang === 'el' ? 'Φθηνότερο Πρατήριο' : 'Cheapest Station'}</th>
       </tr></thead>
       <tbody>
         ${sorted.map(d => {
-          const data   = d[activeFuelType];
+          const data    = d[activeFuelType];
           const isBest  = data.min === globalMin;
           const isWorst = data.min === globalMax;
           return `<tr>
@@ -921,7 +1130,7 @@ function renderDistrictTable() {
               <div style="font-size:.62rem;color:var(--text-soft)">avg €${data.avg.toFixed(3)}</div>
             </td>
             <td>
-              ${data.cheapest.slice(0, 2).map(s => `
+              ${(data.cheapest || []).slice(0, 2).map(s => `
                 <div style="margin-bottom:4px">
                   <span class="brand-pill">${s.brand}</span>
                   <span style="font-size:.7rem;margin-left:3px">${s.area}</span>
@@ -1112,7 +1321,8 @@ if ('serviceWorker' in navigator) {
   renderFuelStats();
   renderFuelChart();
   renderEuTable();
-  renderDistrictTable();
+  renderDistrictTable();           // renders fallback immediately
+  loadMecitPrices('petrol95');     // fetches live data; re-renders when done
 
   // Roads tab
   renderCityChips();
