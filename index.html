@@ -527,16 +527,24 @@ const TABS = [
   // { id: 'economy', icon: '📊', en: 'Economy', el: 'Οικονομία' },
 ];
 
-// ── Fuel: weekly summary ─────────────────────────────────────
-// Update every Monday from: https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en
+// ── Fuel: EU benchmark values ────────────────────────────────
+// Update every Monday from EC Oil Bulletin:
+// https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en
+// CY prices are fetched live from MECIT — only EU values live here.
 const FUEL_SUMMARY = {
-  updatedOn:    'Mar 2026',
-  petrol95:      1.347,   // €/L
-  diesel:        1.462,   // €/L
-  euAvgPetrol:   1.648,   // €/L EU average
-  euRank:        3,       // Cyprus cheapest rank among EU27
-  wageMonthly:   1564.62, // Average net monthly wage (€) for tank affordability
-  tankLitres:    50,
+  // EU averages (EC Oil Bulletin — update weekly on Mondays)
+  euAvgPetrol:  1.648,  // €/L EU27 average petrol
+  euAvgDiesel:  1.538,  // €/L EU27 average diesel
+  euRank:       3,      // Cyprus rank among EU27 (1 = cheapest)
+
+  // Shown on stat cards while live MECIT data is loading
+  fallbackPetrol95: 1.551,  // island avg from last known MECIT fetch
+  fallbackDiesel:   1.462,  // island avg from last known MECIT fetch
+  fallbackDate:    '28 Mar 2026',
+
+  // Tank affordability
+  wageMonthly: 1564.62, // avg net monthly wage (€)
+  tankLitres:  50,
 };
 
 // ── Fuel: 12-week trend (oldest → newest) ───────────────────
@@ -906,6 +914,7 @@ async function loadMecitPrices(fuelType) {
       const html = json.content?.[0]?.text || '';
       if (html.includes('petroleumPriceDetailsFootable')) {
         mecitCache[fuelType] = { ...parseMecitHtml(html, fuelType), fetchedAt: new Date() };
+        renderFuelStats();
         renderDistrictTable();
         return;
       }
@@ -924,6 +933,7 @@ async function loadMecitPrices(fuelType) {
       const html = await res.text();
       if (html.includes('petroleumPriceDetailsFootable')) {
         mecitCache[fuelType] = { ...parseMecitHtml(html, fuelType), fetchedAt: new Date() };
+        renderFuelStats();
         renderDistrictTable();
         return;
       }
@@ -937,34 +947,61 @@ async function loadMecitPrices(fuelType) {
 
 
 function renderFuelStats() {
-  const { petrol95, diesel, euAvgPetrol, euRank, wageMonthly, tankLitres } = FUEL_SUMMARY;
-  const diffPct  = ((petrol95 - euAvgPetrol) / euAvgPetrol * 100).toFixed(1);
-  const tankCost = (petrol95 * tankLitres).toFixed(2);
-  const wagePct  = (petrol95 * tankLitres / wageMonthly * 100).toFixed(1);
+  const { euAvgPetrol, euAvgDiesel, euRank,
+          fallbackPetrol95, fallbackDiesel, fallbackDate,
+          wageMonthly, tankLitres } = FUEL_SUMMARY;
+
+  // Pull live island averages from MECIT cache if available
+  const liveP95    = mecitCache.petrol95?.islandAvg  ?? null;
+  const liveDiesel = mecitCache.diesel?.islandAvg    ?? null;
+  const isLiveP95  = liveP95    !== null;
+  const isLiveDsl  = liveDiesel !== null;
+
+  const p95     = isLiveP95  ? liveP95    : fallbackPetrol95;
+  const diesel  = isLiveDsl  ? liveDiesel : fallbackDiesel;
+  const diffPct = ((p95 - euAvgPetrol) / euAvgPetrol * 100).toFixed(1);
+  const tankCost = (p95 * tankLitres).toFixed(2);
+  const wagePct  = (p95 * tankLitres / wageMonthly * 100).toFixed(1);
+
+  // Source label shown in footer of each card
+  const p95Foot  = isLiveP95
+    ? `MECIT · ${mecitCache.petrol95.fetchedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+    : `MECIT · loading… (${fallbackDate})`;
+  const dslFoot  = isLiveDsl
+    ? `MECIT · ${mecitCache.diesel.fetchedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+    : `MECIT · loading… (${fallbackDate})`;
 
   const cards = [
     {
-      label: { en: 'Euro 95',          el: 'Αμόλυβδη 95' },
-      value: `${petrol95.toFixed(3)}`, unit: '€/L',
-      sub:   '+2.2% this week',        foot: 'EC Oil Bulletin · Mar 2026',
+      label: { en: 'Euro 95', el: 'Αμόλυβδη 95' },
+      value: p95.toFixed(3),
+      unit:  '€/L',
+      sub:   `${isLiveP95 ? '🟢 Live island avg' : '⏳ Loading live price…'}`,
+      foot:  p95Foot,
       color: '',
     },
     {
-      label: { en: 'Diesel',           el: 'Πετρέλαιο' },
-      value: `${diesel.toFixed(3)}`,   unit: '€/L',
-      sub:   '+3.1% this week',        foot: 'EC Oil Bulletin · Mar 2026',
+      label: { en: 'Diesel', el: 'Πετρέλαιο' },
+      value: diesel.toFixed(3),
+      unit:  '€/L',
+      sub:   `${isLiveDsl ? '🟢 Live island avg' : '⏳ Loading live price…'}`,
+      foot:  dslFoot,
       color: 'c-sea',
     },
     {
-      label: { en: 'vs EU Average',    el: 'έναντι ΜΟ ΕΕ' },
-      value: `${diffPct}`,             unit: '%',
-      sub:   `#${euRank} cheapest in EU`, foot: `EU avg €${euAvgPetrol.toFixed(3)}/L`,
+      label: { en: 'vs EU Average', el: 'έναντι ΜΟ ΕΕ' },
+      value: diffPct,
+      unit:  '%',
+      sub:   `#${euRank} cheapest in EU27`,
+      foot:  `EU avg €${euAvgPetrol.toFixed(3)} · EC Oil Bulletin`,
       color: 'c-green',
     },
     {
       label: { en: `${tankLitres}L Tank`, el: `Δεξαμενή ${tankLitres}L` },
-      value: `€${tankCost}`,           unit: '',
-      sub:   `${wagePct}% of avg wage`, foot: '',
+      value: `€${tankCost}`,
+      unit:  '',
+      sub:   `${wagePct}% of avg monthly wage`,
+      foot:  `Based on ${isLiveP95 ? 'live' : 'cached'} island avg`,
       color: 'c-amber',
     },
   ];
@@ -1322,7 +1359,8 @@ if ('serviceWorker' in navigator) {
   renderFuelChart();
   renderEuTable();
   renderDistrictTable();           // renders fallback immediately
-  loadMecitPrices('petrol95');     // fetches live data; re-renders when done
+  loadMecitPrices('petrol95');     // fetches live; re-renders stat cards + district table
+  loadMecitPrices('diesel');       // fetches live diesel avg for stat card
 
   // Roads tab
   renderCityChips();
